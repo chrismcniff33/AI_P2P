@@ -9,6 +9,7 @@ from collections import Counter
 # --- 1. PAGE CONFIGURATION & STYLING ---
 st.set_page_config(page_title="BrandAI: Strategic Intelligence", page_icon="🚀", layout="wide")
 
+# Custom CSS for a professional "Top Bar" feel
 st.markdown("""
     <style>
         .block-container {padding-top: 1rem; padding-bottom: 2rem;}
@@ -67,9 +68,6 @@ def load_and_enrich_data():
     df['source_citation'] = df.apply(assign_source, axis=1)
     
     # --- B. INTELLIGENT BRAND EXTRACTION (NLP LIST) ---
-    # Since brands are not bolded, we use a master list to scan the text.
-    # This list covers the 500+ brands we generated earlier.
-    
     known_brands = [
         # Shampoo
         "Suave", "Garnier", "Pantene", "Herbal Essences", "Aussie", "Tresemmé", "Dove", "L'Oréal", "Head & Shoulders", "Old Spice",
@@ -95,13 +93,11 @@ def load_and_enrich_data():
         "HealthKart", "Patanjali", "Dabur", "Baidyanath", "Organic India", "Zandu", "Nutrilite", "Becosules", "Shelcal", "TrueBasics", "MuscleBlaze", "Revital", "Seven Seas", "Fast&Up", "Optimum Nutrition", "BigMuscles", "MyProtein", "Wellbeing Nutrition", "Oziva", "Kapiva", "Power Gummies", "Plix", "Setu", "Man Matters", "Boldfit"
     ]
     
-    # Pre-compile regex patterns for speed (IGNORE CASE)
     brand_patterns = {brand: re.compile(re.escape(brand), re.IGNORECASE) for brand in known_brands}
 
     def extract_brands_nlp(text):
         found = []
         text_str = str(text)
-        # Scan for every known brand in the text
         for brand, pattern in brand_patterns.items():
             if pattern.search(text_str):
                 found.append(brand)
@@ -214,7 +210,8 @@ with tab_insight:
             
             fig_radar = px.line_polar(brand_scores, r='Score', theta='Criteria', line_close=True,
                                       title=f"{target_brand} Visibility by Criteria")
-            fig_radar.update_traces(fill='toself', lineColor='#6366f1')
+            # FIXED: Changed lineColor to line_color
+            fig_radar.update_traces(fill='toself', line_color='#6366f1')
             st.plotly_chart(fig_radar, use_container_width=True)
         else:
             st.warning("Not enough data to plot radar chart.")
@@ -332,7 +329,8 @@ with tab_semantic:
             theme_df = pd.DataFrame(list(theme_scores.items()), columns=['Theme', 'Count'])
             fig_radar = px.line_polar(theme_df, r='Count', theta='Theme', line_close=True,
                                       title="Thematic Positioning Radar")
-            fig_radar.update_traces(fill='toself')
+            # FIXED: Changed lineColor to line_color
+            fig_radar.update_traces(fill='toself', line_color='#6366f1')
             st.plotly_chart(fig_radar, use_container_width=True)
     else:
         st.warning("Not enough data to generate semantic analysis for this brand.")
