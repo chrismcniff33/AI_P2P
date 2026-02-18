@@ -7,7 +7,6 @@ import re
 # --- 1. PAGE CONFIGURATION & STYLING ---
 st.set_page_config(page_title="AI Brand Intelligence", page_icon="🧠", layout="wide")
 
-# Custom CSS to tighten layout and give it a "Dashboard" feel
 st.markdown("""
     <style>
         .block-container {padding-top: 1rem; padding-bottom: 0rem; padding-left: 2rem; padding-right: 2rem;}
@@ -35,7 +34,6 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    # Show input for password.
     st.text_input(
         "Please enter the password to access the dashboard", type="password", on_change=password_entered, key="password"
     )
@@ -44,15 +42,17 @@ def check_password():
     return False
 
 if not check_password():
-    st.stop()  # Do not continue if check_password is not True.
+    st.stop()
 
-# --- 3. DATA LOADING (UPDATED FOR ZIP) ---
+# --- 3. DATA LOADING (FIXED FOR DATES) ---
 @st.cache_data
 def load_data():
-    # Pandas automatically handles ZIP compression!
-    # It will open the zip and read the first CSV file inside.
+    # Pandas automatically handles ZIP compression
     df = pd.read_csv("ultimate_ai_dataset_contextual.zip")
-    df['date'] = pd.to_datetime(df['date'])
+    
+    # FIX: Add dayfirst=True and format='mixed' to handle 19/01/2026 style dates
+    df['date'] = pd.to_datetime(df['date'], dayfirst=True, format='mixed')
+    
     return df
 
 try:
@@ -78,19 +78,20 @@ with st.sidebar:
     
     st.markdown("---")
     st.caption(f"Analyzing {len(df):,} total AI responses.")
-    st.caption("Data range: Jan 5 - Feb 9, 2026")
+    # Fix date display in caption
+    min_date = df['date'].min().strftime('%b %d')
+    max_date = df['date'].max().strftime('%b %d, %Y')
+    st.caption(f"Data range: {min_date} - {max_date}")
 
 # Apply Global Filter
 df_cat = df[df['category'] == selected_category]
 
 # --- 5. TOP KPI ROW ---
-# Calculate high-level metrics
 total_prompts = len(df_cat)
 all_brands = []
 for r in df_cat['response']:
     all_brands.extend(extract_brands(r))
 unique_brands = len(set(all_brands))
-# Calculate top brand safely
 top_brand_global = pd.Series(all_brands).mode()[0] if all_brands else "N/A"
 
 col1, col2, col3, col4 = st.columns(4)
@@ -106,7 +107,6 @@ tab1, tab2, tab3 = st.tabs(["📈 Market Overview", "⚔️ Head-to-Head Compare
 
 # === TAB 1: OVERVIEW ===
 with tab1:
-    # Row 1: Timeline & Share of Voice
     c1, c2 = st.columns([2, 1])
     
     with c1:
@@ -125,10 +125,8 @@ with tab1:
         fig_donut.update_layout(showlegend=False, height=350)
         st.plotly_chart(fig_donut, use_container_width=True)
 
-    # Row 2: Brand Leaderboard
     st.subheader(f"🏆 Top Recommended Brands: {selected_category}")
     
-    # Get top brands for the selected category
     cat_brands = []
     for r in df_cat['response']:
         cat_brands.extend(extract_brands(r))
@@ -147,9 +145,7 @@ with tab1:
 # === TAB 2: HEAD-TO-HEAD COMPARISON ===
 with tab2:
     st.markdown("### ⚔️ Country & Platform Standoff")
-    st.write("Compare how recommendations differ between two regions or platforms.")
     
-    # Comparison Filters
     col_a, col_mid, col_b = st.columns([1, 0.1, 1])
     
     with col_a:
@@ -162,14 +158,12 @@ with tab2:
         country_b = st.selectbox("Country B", sorted(df['country'].unique()), index=1, key="cb")
         platform_b = st.selectbox("Platform B", ["All"] + sorted(df['AI platform'].unique()), index=0, key="pb")
 
-    # Filter Data for Sides
     df_a = df_cat[df_cat['country'] == country_a]
     if platform_a != "All": df_a = df_a[df_a['AI platform'] == platform_a]
     
     df_b = df_cat[df_cat['country'] == country_b]
     if platform_b != "All": df_b = df_b[df_b['AI platform'] == platform_b]
 
-    # Process Brands for Sides
     def get_top_brands_df(dataframe):
         b_list = []
         for r in dataframe['response']:
@@ -180,7 +174,6 @@ with tab2:
     brands_a = get_top_brands_df(df_a)
     brands_b = get_top_brands_df(df_b)
 
-    # Display Visual Comparison
     st.divider()
     
     viz_col_a, viz_col_b = st.columns(2)
@@ -189,7 +182,7 @@ with tab2:
         st.subheader(f"Top in {country_a}")
         if not brands_a.empty:
             fig_a = px.bar(brands_a, x='Mentions', y='Brand', orientation='h', title=None)
-            fig_a.update_traces(marker_color='#3b82f6') # Blue
+            fig_a.update_traces(marker_color='#3b82f6')
             fig_a.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig_a, use_container_width=True)
         else:
@@ -199,7 +192,7 @@ with tab2:
         st.subheader(f"Top in {country_b}")
         if not brands_b.empty:
             fig_b = px.bar(brands_b, x='Mentions', y='Brand', orientation='h', title=None)
-            fig_b.update_traces(marker_color='#10b981') # Green
+            fig_b.update_traces(marker_color='#10b981')
             fig_b.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig_b, use_container_width=True)
         else:
@@ -208,8 +201,6 @@ with tab2:
 # === TAB 3: RAW DATA ===
 with tab3:
     st.markdown("### 📂 Data Explorer")
-    
-    # Search Bar
     search_term = st.text_input("Search prompts or responses (e.g., 'dandruff', 'Sony', 'cheap')")
     
     view_df = df_cat
@@ -217,8 +208,4 @@ with tab3:
         view_df = df_cat[df_cat['prompt'].str.contains(search_term, case=False) | 
                          df_cat['response'].str.contains(search_term, case=False)]
     
-    st.dataframe(
-        view_df[['date', 'country', 'AI platform', 'criteria', 'prompt', 'response']], 
-        use_container_width=True,
-        height=600
-    )
+    st.dataframe(view_df[['date', 'country', 'AI platform', 'criteria', 'prompt', 'response']], use_container_width=True, height=600)
