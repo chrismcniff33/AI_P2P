@@ -46,19 +46,22 @@ def check_password():
 if not check_password():
     st.stop()  # Do not continue if check_password is not True.
 
-# --- 3. DATA LOADING ---
+# --- 3. DATA LOADING (UPDATED FOR ZIP) ---
 @st.cache_data
 def load_data():
-    # Load your generated dataset
-    # Ensure this file is in the same directory (GitHub repo root)
-    df = pd.read_csv("ultimate_ai_dataset_contextual.csv")
+    # Pandas automatically handles ZIP compression!
+    # It will open the zip and read the first CSV file inside.
+    df = pd.read_csv("ultimate_ai_dataset_contextual.zip")
     df['date'] = pd.to_datetime(df['date'])
     return df
 
 try:
     df = load_data()
 except FileNotFoundError:
-    st.error("❌ CSV file not found. Ensure 'ultimate_ai_dataset_contextual.csv' is in the folder.")
+    st.error("❌ ZIP file not found. Please ensure 'ultimate_ai_dataset_contextual.zip' is in the GitHub repository.")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ Error loading data: {e}")
     st.stop()
 
 # Helper: Extract brands between **bold** markers
@@ -196,4 +199,26 @@ with tab2:
         st.subheader(f"Top in {country_b}")
         if not brands_b.empty:
             fig_b = px.bar(brands_b, x='Mentions', y='Brand', orientation='h', title=None)
-            fig_b.update
+            fig_b.update_traces(marker_color='#10b981') # Green
+            fig_b.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_b, use_container_width=True)
+        else:
+            st.warning("No data found for selection B")
+
+# === TAB 3: RAW DATA ===
+with tab3:
+    st.markdown("### 📂 Data Explorer")
+    
+    # Search Bar
+    search_term = st.text_input("Search prompts or responses (e.g., 'dandruff', 'Sony', 'cheap')")
+    
+    view_df = df_cat
+    if search_term:
+        view_df = df_cat[df_cat['prompt'].str.contains(search_term, case=False) | 
+                         df_cat['response'].str.contains(search_term, case=False)]
+    
+    st.dataframe(
+        view_df[['date', 'country', 'AI platform', 'criteria', 'prompt', 'response']], 
+        use_container_width=True,
+        height=600
+    )
