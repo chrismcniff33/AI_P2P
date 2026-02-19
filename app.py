@@ -12,11 +12,12 @@ st.set_page_config(page_title="AI Path to Purchase", page_icon="🚀", layout="w
 
 st.markdown("""
     <style>
-        .block-container {padding-top: 1rem; padding-bottom: 2rem;}
-        h1 {color: #1e293b; font-family: 'Helvetica Neue', sans-serif;}
+        .block-container {padding-top: 2rem; padding-bottom: 2rem;}
+        h1 {color: #1e293b; font-family: 'Helvetica Neue', sans-serif; margin-bottom: 1.5rem;}
         .metric-card {background-color: #f8fafc; padding: 20px; border-radius: 8px; border-left: 5px solid #6366f1;}
-        div[data-testid="stMetricValue"] {font-size: 1.5rem; color: #4F46E5;}
-        .stTabs [data-baseweb="tab-list"] {gap: 10px; border-bottom: 1px solid #e5e7eb;}
+        div[data-testid="stMetricValue"] {font-size: 1.3rem; color: #4F46E5;}
+        div[data-testid="stMetricDelta"] {font-size: 1rem;}
+        .stTabs [data-baseweb="tab-list"] {gap: 10px; border-bottom: 1px solid #e5e7eb; margin-top: 1rem;}
         .stTabs [data-baseweb="tab"] {height: 50px; white-space: pre-wrap; background-color: #f1f5f9; border-radius: 5px 5px 0px 0px; padding: 10px 20px;}
         .stTabs [aria-selected="true"] {background-color: #4f46e5; color: white;}
     </style>
@@ -105,40 +106,35 @@ if df_exploded.empty:
     st.error("⚠️ No brands were detected! Check dataset generation.")
     st.stop()
 
-# --- 4. SIDEBAR (Scope Only) ---
-with st.sidebar:
-    st.title("🎯 Parameters")
-    st.subheader("Define Market Scope")
-    selected_category = st.selectbox("Category", sorted(df['category'].unique()))
-    
-    # Filter base dataframe based on category selection
-    scope_df = df_exploded[df_exploded['category'] == selected_category]
-    st.markdown("---")
-    st.info(f"Analyzing {len(scope_df):,} total mentions.")
 
-# --- 5. TOP LEVEL TITLE & TABS ---
+# --- 4. TOP LEVEL NAVIGATION & FILTERS ---
 st.title("AI Path to Purchase")
 
-# The tabs sit directly under the title
+# Global Filters at the top of the page
+col_cat, col_brand = st.columns(2)
+
+with col_cat:
+    selected_category = st.selectbox("📂 Select Category", sorted(df['category'].unique()))
+    scope_df = df_exploded[df_exploded['category'] == selected_category]
+
+with col_brand:
+    if not scope_df.empty:
+        available_brands = scope_df['mentioned_brands'].value_counts().head(50).index.tolist()
+        target_brand = st.selectbox("🎯 Select Focus Brand", available_brands, index=0)
+    else:
+        st.warning("No data for this category.")
+        st.stop()
+
+# --- 5. MAIN TABS ---
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
-    "👁️ AI Visibility Overview", 
+    "👁️ Share of Voice Overview", 
     "📊 Share of Voice Trends", 
     "💬 Brand Perception", 
     "🔗 Source Intelligence"
 ])
 
-# === TAB 1: AI VISIBILITY OVERVIEW ===
+# === TAB 1: SHARE OF VOICE OVERVIEW ===
 with tab_insight:
-    
-    # Place the target brand selector directly inside the tab, above KPIs
-    if not scope_df.empty:
-        available_brands = scope_df['mentioned_brands'].value_counts().head(50).index.tolist()
-        target_brand = st.selectbox("🎯 Select Focus Brand", available_brands, index=0)
-    else:
-        st.warning("No data for this category/market selection.")
-        st.stop()
-
-    st.markdown("<br>", unsafe_allow_html=True)
     
     # --- INFOGRAPHICS ROW ---
     st.markdown("### Global AI Visibility Metrics")
@@ -160,29 +156,39 @@ with tab_insight:
     
     leader = scope_df['mentioned_brands'].value_counts().index[0]
     
-    # Calculate Strengths & Weaknesses based on Country and AI Platform SoV
-    c_totals = scope_df.groupby('country').size()
-    c_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby('country').size()
-    c_sov = (c_brand.reindex(c_totals.index, fill_value=0) / c_totals * 100)
+    # --- INTELLIGENT KPI CALCULATION (Platform in Country) ---
+    # 1. Identify where the brand ACTUALLY has a presence (Active Countries)
+    brand_df = scope_df[scope_df['mentioned_brands'] == target_brand]
+    active_countries = brand_df['country'].unique()
+
+    # 2. Calculate SoV for every Country x AI Platform combination
+    cp_totals = scope_df.groupby(['country', 'AI platform']).size().reset_index(name='total')
+    cp_brand = brand_df.groupby(['country', 'AI platform']).size().reset_index(name='brand_count')
+    cp_merged = pd.merge(cp_totals, cp_brand, on=['country', 'AI platform'], how='left').fillna(0)
     
-    p_totals = scope_df.groupby('AI platform').size()
-    p_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby('AI platform').size()
-    p_sov = (p_brand.reindex(p_totals.index, fill_value=0) / p_totals * 100)
-    
-    combined_sov = pd.concat([c_sov, p_sov])
-    
-    if not combined_sov.empty:
-        top_strength = f"{combined_sov.idxmax()} ({combined_sov.max():.1f}%)"
-        top_weakness = f"{combined_sov.idxmin()} ({combined_sov.min():.1f}%)"
+    # 3. Filter strictly to active countries (Don't advise on countries where they don't exist)
+    cp_active = cp_merged[cp_merged['country'].isin(active_countries)].copy()
+    cp_active['sov'] = (cp_active['brand_count'] / cp_active['total']) * 100
+
+    if not cp_active.empty:
+        idx_max = cp_active['sov'].idxmax()
+        idx_min = cp_active['sov'].idxmin()
+        
+        top_strength_str = f"{cp_active.loc[idx_max, 'AI platform']} in {cp_active.loc[idx_max, 'country']}"
+        top_strength_val = cp_active.loc[idx_max, 'sov']
+        
+        top_weakness_str = f"{cp_active.loc[idx_min, 'AI platform']} in {cp_active.loc[idx_min, 'country']}"
+        top_weakness_val = cp_active.loc[idx_min, 'sov']
     else:
-        top_strength, top_weakness = "N/A", "N/A"
+        top_strength_str, top_weakness_str = "N/A", "N/A"
+        top_strength_val, top_weakness_val = 0, 0
 
     # Display KPI Cards
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Visibility vs Industry", visibility, f"SoV: {global_sov:.1f}% (Avg: {ind_avg_sov:.1f}%)")
+    col1.metric("Visibility vs Industry", visibility, f"SoV: {global_sov:.1f}% (Avg: {ind_avg_sov:.1f}%)", delta_color="off")
     col2.metric("Category Leader", leader)
-    col3.metric("Top Strength", top_strength.split(" (")[0], help=f"Highest visibility in: {top_strength}")
-    col4.metric("Area for Improvement", top_weakness.split(" (")[0], help=f"Lowest visibility in: {top_weakness}")
+    col3.metric("Top Strength", top_strength_str, f"{top_strength_val:.1f}% SoV", delta_color="off")
+    col4.metric("Area for Improvement", top_weakness_str, f"{top_weakness_val:.1f}% SoV", delta_color="off")
 
     st.markdown("---")
     
@@ -208,11 +214,9 @@ with tab_insight:
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
                         labels={'sov': 'Share of Voice (%)'}, height=400)
         
-        # Calculate dynamic industry average (Week by Week)
         ind_avg_df_l = left_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
         ind_avg_df_l['ind_avg'] = 100.0 / ind_avg_df_l['unique'].replace(0, 1)
         
-        # Plot dynamic industry average
         fig_l.add_trace(go.Scatter(
             x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg'],
             mode='lines+markers', line=dict(dash='dash', color='gray'),
@@ -245,11 +249,9 @@ with tab_insight:
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
                         labels={'sov': 'Share of Voice (%)'}, height=400)
         
-        # Calculate dynamic industry average (Week by Week)
         ind_avg_df_r = right_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
         ind_avg_df_r['ind_avg'] = 100.0 / ind_avg_df_r['unique'].replace(0, 1)
         
-        # Plot dynamic industry average
         fig_r.add_trace(go.Scatter(
             x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg'],
             mode='lines+markers', line=dict(dash='dash', color='gray'),
@@ -281,15 +283,13 @@ with tab_insight:
     hm_pivot = hm_df.pivot(index='country', columns='AI platform', values='index_vs_avg')
     hm_totals_pivot = hm_df.pivot(index='country', columns='AI platform', values='total')
     
-    # Defined Orders
+    # Strict Ordering based on rules
     y_order = ["USA", "Brazil", "India", "China", "Indonesia"]
     x_order = ["Gemini", "Chat GPT", "Amazon Rufus", "Qwen", "AI Lazzie"]
     
-    # Ensure columns/rows exist before reindexing
     hm_pivot = hm_pivot.reindex(index=y_order, columns=x_order)
     hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
     
-    # Mask invalid combos (where total mentions are NaN)
     hm_pivot_masked = hm_pivot.where(hm_totals_pivot.notna(), np.nan)
     
     text_array = []
@@ -312,8 +312,8 @@ with tab_insight:
     fig_hm.update_layout(
         xaxis_title="", 
         yaxis_title="",
-        yaxis=dict(autorange="reversed"), # Enforces Top-to-Bottom order
-        plot_bgcolor="#e2e8f0" # Light gray background for the "-" cells
+        yaxis=dict(autorange="reversed"), 
+        plot_bgcolor="#e2e8f0" 
     )
     st.plotly_chart(fig_hm, use_container_width=True)
 
