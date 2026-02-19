@@ -107,32 +107,19 @@ if df_exploded.empty:
 
 # --- 4. SIDEBAR (Scope Only) ---
 with st.sidebar:
-    st.title("🚀 AI Path to Purchase")
+    st.title("🎯 Parameters")
     st.subheader("Define Market Scope")
     selected_category = st.selectbox("Category", sorted(df['category'].unique()))
-    avail_countries = sorted(df[df['category'] == selected_category]['country'].unique())
-    selected_country = st.selectbox("Market (Country)", ["All"] + avail_countries)
     
+    # Filter base dataframe based on category selection
     scope_df = df_exploded[df_exploded['category'] == selected_category]
-    if selected_country != "All":
-        scope_df = scope_df[scope_df['country'] == selected_country]
-    
     st.markdown("---")
-    st.info(f"Analyzing {len(scope_df):,} mentions.")
+    st.info(f"Analyzing {len(scope_df):,} total mentions.")
 
-# --- 5. TOP LEVEL BRAND FILTER ---
+# --- 5. TOP LEVEL TITLE & TABS ---
 st.title("AI Path to Purchase")
 
-if not scope_df.empty:
-    available_brands = scope_df['mentioned_brands'].value_counts().head(50).index.tolist()
-    target_brand = st.selectbox("🎯 Select Focus Brand", available_brands, index=0)
-else:
-    st.warning("No data for this category/market selection.")
-    st.stop()
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- 6. MAIN TABS ---
+# The tabs sit directly under the title
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ AI Visibility Overview", 
     "📊 Share of Voice Trends", 
@@ -140,13 +127,23 @@ tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "🔗 Source Intelligence"
 ])
 
-# === TAB 1: AI VISIBILITY OVERVIEW (REDESIGNED) ===
+# === TAB 1: AI VISIBILITY OVERVIEW ===
 with tab_insight:
+    
+    # Place the target brand selector directly inside the tab, above KPIs
+    if not scope_df.empty:
+        available_brands = scope_df['mentioned_brands'].value_counts().head(50).index.tolist()
+        target_brand = st.selectbox("🎯 Select Focus Brand", available_brands, index=0)
+    else:
+        st.warning("No data for this category/market selection.")
+        st.stop()
+
+    st.markdown("<br>", unsafe_allow_html=True)
     
     # --- INFOGRAPHICS ROW ---
     st.markdown("### Global AI Visibility Metrics")
     
-    # Math for Infographics
+    # Global Calculations
     global_mentions = len(scope_df)
     brand_mentions = len(scope_df[scope_df['mentioned_brands'] == target_brand])
     global_sov = (brand_mentions / global_mentions) * 100 if global_mentions > 0 else 0
@@ -163,12 +160,20 @@ with tab_insight:
     
     leader = scope_df['mentioned_brands'].value_counts().index[0]
     
-    # Calculate Strengths / Weaknesses
-    crit_counts = scope_df.groupby(['criteria', 'mentioned_brands']).size().unstack(fill_value=0)
-    if not crit_counts.empty and target_brand in crit_counts.columns:
-        crit_pct = crit_counts.div(crit_counts.sum(axis=1), axis=0) * 100
-        top_strength = f"{crit_pct[target_brand].idxmax()} ({crit_pct[target_brand].max():.1f}%)"
-        top_weakness = f"{crit_pct[target_brand].idxmin()} ({crit_pct[target_brand].min():.1f}%)"
+    # Calculate Strengths & Weaknesses based on Country and AI Platform SoV
+    c_totals = scope_df.groupby('country').size()
+    c_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby('country').size()
+    c_sov = (c_brand.reindex(c_totals.index, fill_value=0) / c_totals * 100)
+    
+    p_totals = scope_df.groupby('AI platform').size()
+    p_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby('AI platform').size()
+    p_sov = (p_brand.reindex(p_totals.index, fill_value=0) / p_totals * 100)
+    
+    combined_sov = pd.concat([c_sov, p_sov])
+    
+    if not combined_sov.empty:
+        top_strength = f"{combined_sov.idxmax()} ({combined_sov.max():.1f}%)"
+        top_weakness = f"{combined_sov.idxmin()} ({combined_sov.min():.1f}%)"
     else:
         top_strength, top_weakness = "N/A", "N/A"
 
@@ -176,20 +181,24 @@ with tab_insight:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Visibility vs Industry", visibility, f"SoV: {global_sov:.1f}% (Avg: {ind_avg_sov:.1f}%)")
     col2.metric("Category Leader", leader)
-    col3.metric("Top Strength (Criteria)", top_strength.split(" (")[0])
-    col4.metric("Key Area for Improvement", top_weakness.split(" (")[0])
+    col3.metric("Top Strength", top_strength.split(" (")[0], help=f"Highest visibility in: {top_strength}")
+    col4.metric("Area for Improvement", top_weakness.split(" (")[0], help=f"Lowest visibility in: {top_weakness}")
 
     st.markdown("---")
     
     # --- FULL WIDTH LINE CHARTS ---
     st.markdown("### Cross-Segment Share of Voice Over Time")
     
-    # CHART 1: By AI Platform
+    # CHART 1: SoV by AI Platform
     st.markdown("#### SoV by AI Platform")
-    all_geos = sorted(scope_df['country'].unique())
-    selected_geos = st.multiselect("Filter Geography", all_geos, default=all_geos, key="geo_filter")
+    all_geos_options = ["Global"] + sorted(scope_df['country'].unique())
+    selected_geos = st.multiselect("Filter Geography", all_geos_options, default=["Global"], key="geo_filter")
     
-    left_df = scope_df[scope_df['country'].isin(selected_geos)]
+    if "Global" in selected_geos:
+        left_df = scope_df
+    else:
+        left_df = scope_df[scope_df['country'].isin(selected_geos)]
+        
     if not left_df.empty:
         l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
         l_brand = left_df[left_df['mentioned_brands'] == target_brand].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
@@ -198,20 +207,35 @@ with tab_insight:
         
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
                         labels={'sov': 'Share of Voice (%)'}, height=400)
-        fig_l.add_hline(y=ind_avg_sov, line_dash="dash", line_color="gray", annotation_text="Industry Avg", annotation_position="bottom right")
-        fig_l.update_traces(mode="lines+markers", hovertemplate='%{y:.1f}% SoV<extra></extra>')
+        
+        # Calculate dynamic industry average (Week by Week)
+        ind_avg_df_l = left_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
+        ind_avg_df_l['ind_avg'] = 100.0 / ind_avg_df_l['unique'].replace(0, 1)
+        
+        # Plot dynamic industry average
+        fig_l.add_trace(go.Scatter(
+            x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg'],
+            mode='lines+markers', line=dict(dash='dash', color='gray'),
+            name='Industry Avg', hovertemplate='Avg: %{y:.1f}%<extra></extra>'
+        ))
+        
+        fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_l, use_container_width=True)
     else:
-        st.info("Please select at least one geography.")
+        st.info("No data available for the selected geography.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # CHART 2: By Geography
+    # CHART 2: SoV by Geography
     st.markdown("#### SoV by Geography")
-    all_plats = sorted(scope_df['AI platform'].unique())
-    selected_plats = st.multiselect("Filter AI Platform", all_plats, default=all_plats, key="plat_filter")
+    all_plats_options = ["All AI Platforms"] + sorted(scope_df['AI platform'].unique())
+    selected_plats = st.multiselect("Filter AI Platform", all_plats_options, default=["All AI Platforms"], key="plat_filter")
     
-    right_df = scope_df[scope_df['AI platform'].isin(selected_plats)]
+    if "All AI Platforms" in selected_plats:
+        right_df = scope_df
+    else:
+        right_df = scope_df[scope_df['AI platform'].isin(selected_plats)]
+        
     if not right_df.empty:
         r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
         r_brand = right_df[right_df['mentioned_brands'] == target_brand].groupby(['date', 'country']).size().reset_index(name='brand_count')
@@ -220,11 +244,22 @@ with tab_insight:
         
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
                         labels={'sov': 'Share of Voice (%)'}, height=400)
-        fig_r.add_hline(y=ind_avg_sov, line_dash="dash", line_color="gray", annotation_text="Industry Avg", annotation_position="bottom right")
-        fig_r.update_traces(mode="lines+markers", hovertemplate='%{y:.1f}% SoV<extra></extra>')
+        
+        # Calculate dynamic industry average (Week by Week)
+        ind_avg_df_r = right_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
+        ind_avg_df_r['ind_avg'] = 100.0 / ind_avg_df_r['unique'].replace(0, 1)
+        
+        # Plot dynamic industry average
+        fig_r.add_trace(go.Scatter(
+            x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg'],
+            mode='lines+markers', line=dict(dash='dash', color='gray'),
+            name='Industry Avg', hovertemplate='Avg: %{y:.1f}%<extra></extra>'
+        ))
+        
+        fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_r, use_container_width=True)
     else:
-        st.info("Please select at least one AI Platform.")
+        st.info("No data available for the selected AI Platform.")
             
     st.markdown("---")
     
@@ -250,6 +285,7 @@ with tab_insight:
     y_order = ["USA", "Brazil", "India", "China", "Indonesia"]
     x_order = ["Gemini", "Chat GPT", "Amazon Rufus", "Qwen", "AI Lazzie"]
     
+    # Ensure columns/rows exist before reindexing
     hm_pivot = hm_pivot.reindex(index=y_order, columns=x_order)
     hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
     
@@ -266,7 +302,6 @@ with tab_insight:
                 row.append(f"{v:.0f}")
         text_array.append(row)
     
-    # Plotly setup for neutral NaNs
     fig_hm = px.imshow(hm_pivot_masked, 
                        aspect="auto",
                        color_continuous_scale="RdYlGn",
@@ -298,14 +333,14 @@ with tab_sov:
         
         filtered_daily = daily_counts[daily_counts['mentioned_brands'].isin(top_10)]
         
-        fig_time = px.line(filtered_daily, x='date', y='sov_pct', color='mentioned_brands',
+        fig_time_comp = px.line(filtered_daily, x='date', y='sov_pct', color='mentioned_brands',
                            title="Top Brands Visibility % Over Time",
                            labels={'sov_pct': 'Share of Voice (%)'},
                            markers=True)
         
-        fig_time.update_traces(opacity=0.3)
-        fig_time.update_traces(selector={'name':target_brand}, opacity=1, line={'width': 4})
-        st.plotly_chart(fig_time, use_container_width=True)
+        fig_time_comp.update_traces(opacity=0.3)
+        fig_time_comp.update_traces(selector={'name':target_brand}, opacity=1, line={'width': 4})
+        st.plotly_chart(fig_time_comp, use_container_width=True)
     else:
         st.info("No timeline data available.")
     
