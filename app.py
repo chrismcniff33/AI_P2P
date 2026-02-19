@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
 import re
 import random
 from collections import Counter
 
 # --- 1. PAGE CONFIGURATION & STYLING ---
-st.set_page_config(page_title="BrandAI: Strategic Intelligence", page_icon="🚀", layout="wide")
+st.set_page_config(page_title="AI Path to Purchase", page_icon="🚀", layout="wide")
 
 st.markdown("""
     <style>
@@ -106,7 +107,7 @@ if df_exploded.empty:
 
 # --- 4. SIDEBAR (Scope Only) ---
 with st.sidebar:
-    st.title("🚀 BrandAI")
+    st.title("🚀 AI Path to Purchase")
     st.subheader("Define Market Scope")
     selected_category = st.selectbox("Category", sorted(df['category'].unique()))
     avail_countries = sorted(df[df['category'] == selected_category]['country'].unique())
@@ -120,7 +121,7 @@ with st.sidebar:
     st.info(f"Analyzing {len(scope_df):,} mentions.")
 
 # --- 5. TOP LEVEL BRAND FILTER ---
-st.title("Strategic Brand Intelligence")
+st.title("AI Path to Purchase")
 
 if not scope_df.empty:
     available_brands = scope_df['mentioned_brands'].value_counts().head(50).index.tolist()
@@ -180,95 +181,106 @@ with tab_insight:
 
     st.markdown("---")
     
-    # --- LINE CHARTS ROW ---
+    # --- FULL WIDTH LINE CHARTS ---
     st.markdown("### Cross-Segment Share of Voice Over Time")
     
-    c_left, c_right = st.columns(2)
+    # CHART 1: By AI Platform
+    st.markdown("#### SoV by AI Platform")
+    all_geos = sorted(scope_df['country'].unique())
+    selected_geos = st.multiselect("Filter Geography", all_geos, default=all_geos, key="geo_filter")
     
-    with c_left:
-        st.markdown("**SoV by AI Platform**")
-        # Multiselect Filter for Geographies
-        all_geos = sorted(scope_df['country'].unique())
-        selected_geos = st.multiselect("Filter Geography", all_geos, default=all_geos, key="geo_filter")
+    left_df = scope_df[scope_df['country'].isin(selected_geos)]
+    if not left_df.empty:
+        l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
+        l_brand = left_df[left_df['mentioned_brands'] == target_brand].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
+        l_merged = pd.merge(l_totals, l_brand, on=['date', 'AI platform'], how='left').fillna(0)
+        l_merged['sov'] = (l_merged['brand_count'] / l_merged['total']) * 100
         
-        # Calculate Data
-        left_df = scope_df[scope_df['country'].isin(selected_geos)]
-        if not left_df.empty:
-            l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
-            l_brand = left_df[left_df['mentioned_brands'] == target_brand].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
-            l_merged = pd.merge(l_totals, l_brand, on=['date', 'AI platform'], how='left').fillna(0)
-            l_merged['sov'] = (l_merged['brand_count'] / l_merged['total']) * 100
-            
-            fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
-                            labels={'sov': 'Share of Voice (%)'}, title=f"{target_brand} Visibility by AI Platform")
-            
-            # Add Industry Average Line (Dashed)
-            fig_l.add_hline(y=ind_avg_sov, line_dash="dash", line_color="gray", annotation_text="Industry Avg", annotation_position="bottom right")
-            fig_l.update_traces(mode="lines+markers", hovertemplate='%{y:.1f}% SoV<extra></extra>')
-            st.plotly_chart(fig_l, use_container_width=True)
-        else:
-            st.info("Please select at least one geography.")
+        fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
+                        labels={'sov': 'Share of Voice (%)'}, height=400)
+        fig_l.add_hline(y=ind_avg_sov, line_dash="dash", line_color="gray", annotation_text="Industry Avg", annotation_position="bottom right")
+        fig_l.update_traces(mode="lines+markers", hovertemplate='%{y:.1f}% SoV<extra></extra>')
+        st.plotly_chart(fig_l, use_container_width=True)
+    else:
+        st.info("Please select at least one geography.")
 
-    with c_right:
-        st.markdown("**SoV by Geography**")
-        # Multiselect Filter for AI Platforms
-        all_plats = sorted(scope_df['AI platform'].unique())
-        selected_plats = st.multiselect("Filter AI Platform", all_plats, default=all_plats, key="plat_filter")
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # CHART 2: By Geography
+    st.markdown("#### SoV by Geography")
+    all_plats = sorted(scope_df['AI platform'].unique())
+    selected_plats = st.multiselect("Filter AI Platform", all_plats, default=all_plats, key="plat_filter")
+    
+    right_df = scope_df[scope_df['AI platform'].isin(selected_plats)]
+    if not right_df.empty:
+        r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
+        r_brand = right_df[right_df['mentioned_brands'] == target_brand].groupby(['date', 'country']).size().reset_index(name='brand_count')
+        r_merged = pd.merge(r_totals, r_brand, on=['date', 'country'], how='left').fillna(0)
+        r_merged['sov'] = (r_merged['brand_count'] / r_merged['total']) * 100
         
-        # Calculate Data
-        right_df = scope_df[scope_df['AI platform'].isin(selected_plats)]
-        if not right_df.empty:
-            r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
-            r_brand = right_df[right_df['mentioned_brands'] == target_brand].groupby(['date', 'country']).size().reset_index(name='brand_count')
-            r_merged = pd.merge(r_totals, r_brand, on=['date', 'country'], how='left').fillna(0)
-            r_merged['sov'] = (r_merged['brand_count'] / r_merged['total']) * 100
-            
-            fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
-                            labels={'sov': 'Share of Voice (%)'}, title=f"{target_brand} Visibility by Country")
-            
-            # Add Industry Average Line (Dashed)
-            fig_r.add_hline(y=ind_avg_sov, line_dash="dash", line_color="gray", annotation_text="Industry Avg", annotation_position="bottom right")
-            fig_r.update_traces(mode="lines+markers", hovertemplate='%{y:.1f}% SoV<extra></extra>')
-            st.plotly_chart(fig_r, use_container_width=True)
-        else:
-            st.info("Please select at least one AI Platform.")
+        fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
+                        labels={'sov': 'Share of Voice (%)'}, height=400)
+        fig_r.add_hline(y=ind_avg_sov, line_dash="dash", line_color="gray", annotation_text="Industry Avg", annotation_position="bottom right")
+        fig_r.update_traces(mode="lines+markers", hovertemplate='%{y:.1f}% SoV<extra></extra>')
+        st.plotly_chart(fig_r, use_container_width=True)
+    else:
+        st.info("Please select at least one AI Platform.")
             
     st.markdown("---")
     
     # --- HEATMAP MATRIX ---
     st.markdown("### Strategic Heatmap: Geographies vs AI Platforms")
-    st.caption("Shows Index vs Average (100 = Industry Average). Dark green = Strong competitive advantage. Dark red = Critical blind spot.")
+    st.caption("Shows Index vs Average (100 = Industry Average). Dark green = Strong competitive advantage. Gray with '-' = Invalid/No Data Combo.")
     
-    # Calculate Heatmap Data
     hm_totals = scope_df.groupby(['country', 'AI platform']).size().reset_index(name='total')
     hm_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby(['country', 'AI platform']).size().reset_index(name='brand_count')
     hm_df = pd.merge(hm_totals, hm_brand, on=['country', 'AI platform'], how='left').fillna(0)
     hm_df['sov'] = (hm_df['brand_count'] / hm_df['total']) * 100
     
-    # Dynamic industry average per cell
     hm_unique_brands = scope_df.groupby(['country', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique_brands')
     hm_df = pd.merge(hm_df, hm_unique_brands, on=['country', 'AI platform'])
-    hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) # prevent div/0
+    hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     
-    # Calculate Index (Cap at 300 for cleaner color scaling if there are crazy outliers)
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
-    hm_df['index_vs_avg'] = hm_df['index_vs_avg'].fillna(0)
     
-    hm_pivot = hm_df.pivot(index='country', columns='AI platform', values='index_vs_avg').fillna(0)
+    hm_pivot = hm_df.pivot(index='country', columns='AI platform', values='index_vs_avg')
+    hm_totals_pivot = hm_df.pivot(index='country', columns='AI platform', values='total')
     
-    if not hm_pivot.empty:
-        # Create a red-yellow-green custom colorscale
-        fig_hm = px.imshow(hm_pivot, 
-                           text_auto=".0f", 
-                           aspect="auto",
-                           color_continuous_scale="RdYlGn",
-                           color_continuous_midpoint=100, # 100 is exact average (yellow)
-                           labels=dict(x="AI Platform", y="Geography", color="Index"))
-        
-        fig_hm.update_layout(xaxis_title="", yaxis_title="")
-        st.plotly_chart(fig_hm, use_container_width=True)
-    else:
-        st.warning("Insufficient data to generate Heatmap.")
+    # Defined Orders
+    y_order = ["USA", "Brazil", "India", "China", "Indonesia"]
+    x_order = ["Gemini", "Chat GPT", "Amazon Rufus", "Qwen", "AI Lazzie"]
+    
+    hm_pivot = hm_pivot.reindex(index=y_order, columns=x_order)
+    hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
+    
+    # Mask invalid combos (where total mentions are NaN)
+    hm_pivot_masked = hm_pivot.where(hm_totals_pivot.notna(), np.nan)
+    
+    text_array = []
+    for r in hm_pivot_masked.values:
+        row = []
+        for v in r:
+            if pd.isna(v):
+                row.append("-")
+            else:
+                row.append(f"{v:.0f}")
+        text_array.append(row)
+    
+    # Plotly setup for neutral NaNs
+    fig_hm = px.imshow(hm_pivot_masked, 
+                       aspect="auto",
+                       color_continuous_scale="RdYlGn",
+                       color_continuous_midpoint=100, 
+                       labels=dict(x="AI Platform", y="Geography", color="Index"))
+    
+    fig_hm.update_traces(text=text_array, texttemplate="%{text}")
+    fig_hm.update_layout(
+        xaxis_title="", 
+        yaxis_title="",
+        yaxis=dict(autorange="reversed"), # Enforces Top-to-Bottom order
+        plot_bgcolor="#e2e8f0" # Light gray background for the "-" cells
+    )
+    st.plotly_chart(fig_hm, use_container_width=True)
 
 # === TAB 2: SHARE OF VOICE (COMPETITIVE TRENDS) ===
 with tab_sov:
