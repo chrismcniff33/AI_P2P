@@ -374,9 +374,9 @@ with tab_sov:
     st.markdown("---")
 
     st.subheader("Competitive Share of Voice Analysis", help="Compare your brand directly against the top 10 competitors in this category.")
-    st.markdown("#### 1. SoV Evolution (Top 10 Brands)", help="Only countries and AI platforms where the brand selected in the main filter is present are available to view in this chart.")
+    st.markdown("#### SoV Evolution (Top 10 Brands)", help="Only countries and AI platforms where the brand selected in the main filter is present are available to view in this chart.")
     
-    # --- New Multi-Select Filters for the Line Chart (Conditional Logic) ---
+    # --- Multi-Select Filters for the Line Chart (Conditional Logic) ---
     f1_2, f2_2 = st.columns(2)
     
     # Filter available options based ONLY on where the selected brand actually exists
@@ -416,20 +416,96 @@ with tab_sov:
     else:
         st.info("No timeline data available for these filter selections.")
     
-    st.markdown("#### 2. Platform Dominance (Top Brands)")
-    plat_counts = scope_df_2.groupby(['AI platform', 'mentioned_brands']).size().reset_index(name='count')
+    st.markdown("---")
     
-    if not plat_counts.empty:
-        if 'top_10' not in locals() or len(top_10) == 0:
-            top_10 = scope_df_2['mentioned_brands'].value_counts().head(10).index.tolist()
-            
-        plat_filtered = plat_counts[plat_counts['mentioned_brands'].isin(top_10)]
+    # --- Competitor Deep Dive Matrix ---
+    st.markdown("#### Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across all available markets and AI platforms.")
+    
+    # Generate list of competitors (excluding the focus brand itself)
+    available_competitors = [b for b in brands_2 if b != brand_2]
+    competitor_brand = st.selectbox("🤼 Select Competitor", available_competitors, index=0, key='comp_brand', help="Select a rival brand to compare side-by-side rankings.")
+    
+    if competitor_brand:
+        # Calculate Share of Voice Counts aggregated over all time
+        cp_totals = scope_df_2.groupby(['country', 'AI platform']).size().reset_index(name='total')
+        cp_brands = scope_df_2.groupby(['country', 'AI platform', 'mentioned_brands']).size().reset_index(name='count')
         
-        fig_plat = px.bar(plat_filtered, x='AI platform', y='count', color='mentioned_brands',
-                          barmode='stack', labels={'count': 'Mentions', 'AI platform': ''})
-        st.plotly_chart(fig_plat, use_container_width=True, help="Total aggregated mentions per platform broken down by top competitors across the whole category.")
-    else:
-        st.info("No platform data available.")
+        # Calculate absolute Rank per platform/country combination (1 is best)
+        cp_brands['rank'] = cp_brands.groupby(['country', 'AI platform'])['count'].rank(method='min', ascending=False)
+        
+        focus_df = cp_brands[cp_brands['mentioned_brands'] == brand_2].set_index(['country', 'AI platform'])
+        comp_df = cp_brands[cp_brands['mentioned_brands'] == competitor_brand].set_index(['country', 'AI platform'])
+        
+        compare_df = pd.DataFrame(index=cp_totals.set_index(['country', 'AI platform']).index)
+        compare_df['focus_rank'] = focus_df['rank']
+        compare_df['comp_rank'] = comp_df['rank']
+        compare_df['focus_count'] = focus_df['count'].fillna(0)
+        compare_df['comp_count'] = comp_df['count'].fillna(0)
+        
+        # Filter to combinations where AT LEAST ONE of the two brands has a presence
+        valid_combos = compare_df[(compare_df['focus_count'] > 0) | (compare_df['comp_count'] > 0)].index
+        compare_df = compare_df.loc[valid_combos].reset_index()
+        
+        if not compare_df.empty:
+            focus_pivot = compare_df.pivot(index='country', columns='AI platform', values='focus_rank')
+            comp_pivot = compare_df.pivot(index='country', columns='AI platform', values='comp_rank')
+            
+            # Align rows and columns to ensure matrices match perfectly
+            all_countries = sorted(list(set(focus_pivot.index) | set(comp_pivot.index)))
+            all_platforms = sorted(list(set(focus_pivot.columns) | set(comp_pivot.columns)))
+            
+            focus_pivot = focus_pivot.reindex(index=all_countries, columns=all_platforms)
+            comp_pivot = comp_pivot.reindex(index=all_countries, columns=all_platforms)
+            
+            # Create matrices for visual encoding and text overlay
+            color_matrix = pd.DataFrame(np.nan, index=all_countries, columns=all_platforms)
+            focus_text = pd.DataFrame("-", index=all_countries, columns=all_platforms)
+            comp_text = pd.DataFrame("-", index=all_countries, columns=all_platforms)
+            
+            for c in all_platforms:
+                for r in all_countries:
+                    f_val = focus_pivot.loc[r, c]
+                    c_val = comp_pivot.loc[r, c]
+                    
+                    if pd.notna(f_val): focus_text.loc[r, c] = f"Rank {int(f_val)}"
+                    if pd.notna(c_val): comp_text.loc[r, c] = f"Rank {int(c_val)}"
+                    
+                    # Logic for Highlighting the Left (Focus) Matrix
+                    if pd.isna(f_val) and pd.isna(c_val):
+                        color_matrix.loc[r, c] = np.nan
+                    elif pd.isna(f_val): # Focus missing, Competitor present -> WEAK
+                        color_matrix.loc[r, c] = -1 
+                    elif pd.isna(c_val): # Focus present, Competitor missing -> STRONG
+                        color_matrix.loc[r, c] = 1
+                    else:
+                        if f_val < c_val: color_matrix.loc[r, c] = 1       # Lower rank number = Stronger (Green)
+                        elif f_val > c_val: color_matrix.loc[r, c] = -1    # Higher rank number = Weaker (Red)
+                        else: color_matrix.loc[r, c] = 0                   # Equal Rank = Tie (Yellow)
+
+            col_hm1, col_hm2 = st.columns(2)
+            
+            with col_hm1:
+                st.markdown(f"**{brand_2} Ranking**")
+                fig_focus = px.imshow(color_matrix, aspect="auto",
+                                      color_continuous_scale=['#ef4444', '#f59e0b', '#10b981'],
+                                      zmin=-1, zmax=1)
+                fig_focus.update_traces(text=focus_text.values, texttemplate="%{text}", hoverinfo="skip")
+                fig_focus.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig_focus, use_container_width=True)
+                
+            with col_hm2:
+                st.markdown(f"**{competitor_brand} Ranking**")
+                # Create a neutral blue background for the competitor matrix based strictly on their rank
+                max_rank = cp_brands['rank'].max()
+                comp_color = max_rank - comp_pivot # Flips logic so Rank 1 = Darkest Blue
+                fig_comp = px.imshow(comp_color, aspect="auto", color_continuous_scale="Blues")
+                fig_comp.update_traces(text=comp_text.values, texttemplate="%{text}", hoverinfo="skip")
+                fig_comp.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig_comp, use_container_width=True)
+                
+            st.caption("🟢 Green: Stronger than competitor | 🟡 Yellow: Tied | 🔴 Red: Weaker than competitor")
+        else:
+            st.info("Neither brand has a presence in the filtered data.")
 
 # === TAB 3: BRAND PERCEPTION (NLP) ===
 with tab_semantic:
