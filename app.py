@@ -162,13 +162,20 @@ with tab_insight:
     
     st.subheader("Global AI Visibility Metrics", help="High-level summary of your brand's footprint across all monitored Generative AI platforms.")
     
-    # Global Calculations
+    # EXACT WEEKLY INDUSTRY AVERAGE LOGIC (For KPI alignment)
+    # Calculate SoV for all brands on a weekly basis, then take the mean to establish the baseline
+    wk_totals = scope_df_1.groupby('date').size().reset_index(name='total')
+    wk_brands = scope_df_1.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
+    wk_sov = pd.merge(wk_brands, wk_totals, on='date')
+    wk_sov['sov'] = (wk_sov['count'] / wk_sov['total']) * 100
+    weekly_ind_avg = wk_sov.groupby('date')['sov'].mean()
+    
+    ind_avg_sov = weekly_ind_avg.mean() if not weekly_ind_avg.empty else 0
+    
+    # Target Brand Overall Average
     global_mentions = len(scope_df_1)
     brand_mentions = len(scope_df_1[scope_df_1['mentioned_brands'] == brand_1])
     global_sov = (brand_mentions / global_mentions) * 100 if global_mentions > 0 else 0
-    
-    num_brands = len(scope_df_1['mentioned_brands'].unique())
-    ind_avg_sov = 100.0 / num_brands if num_brands > 0 else 0
     
     ratio = global_sov / ind_avg_sov if ind_avg_sov > 0 else 0
     if ratio < 0.5: visibility = "Low"
@@ -189,6 +196,7 @@ with tab_insight:
     hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
     
+    # Filter out combinations where total volume is 0 OR the brand index is 0
     hm_valid = hm_df[(hm_df['total'] > 0) & (hm_df['index_vs_avg'] > 0)]
     
     if not hm_valid.empty:
@@ -248,11 +256,12 @@ with tab_insight:
         left_df = scope_df_1[scope_df_1['country'].isin(selected_geos)]
         
     if not left_df.empty:
+        # Calculate Brand SoV per Platform
         l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
-        l_brand = left_df[left_df['mentioned_brands'] == brand_1].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
-        l_merged = pd.merge(l_totals, l_brand, on=['date', 'AI platform'], how='left').fillna(0)
+        l_brand = left_df.groupby(['date', 'AI platform', 'mentioned_brands']).size().reset_index(name='brand_count')
+        l_merged = pd.merge(l_totals, l_brand[l_brand['mentioned_brands'] == brand_1], on=['date', 'AI platform'], how='left').fillna(0)
         
-        # Filter out platforms where the brand has absolute zero presence
+        # Filter out platforms where the brand has absolute zero presence across the entire dataset
         valid_platforms = l_merged.groupby('AI platform')['brand_count'].sum()
         valid_platforms = valid_platforms[valid_platforms > 0].index
         l_merged = l_merged[l_merged['AI platform'].isin(valid_platforms)]
@@ -260,13 +269,12 @@ with tab_insight:
         l_merged['sov'] = (l_merged['brand_count'] / l_merged['total']) * 100
         
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
-                        labels={'sov': 'Share of Voice (%)'}, height=400)
+                        labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         
-        # True Fluctuating Weekly Industry Average
-        # Calculates the mean SoV across all unique brands actually present in each platform for that week
-        plat_uniques = left_df.groupby(['date', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique')
-        plat_uniques['plat_avg'] = 100.0 / plat_uniques['unique'].replace(0, 1)
-        ind_avg_df_l = plat_uniques.groupby('date')['plat_avg'].mean().reset_index(name='ind_avg')
+        # True Weekly Industry Average (Mean SoV of all active brands grouped by week)
+        all_l_sov = pd.merge(l_brand, l_totals, on=['date', 'AI platform'])
+        all_l_sov['sov'] = (all_l_sov['brand_count'] / all_l_sov['total']) * 100
+        ind_avg_df_l = all_l_sov.groupby('date')['sov'].mean().reset_index(name='ind_avg')
         
         fig_l.add_trace(go.Scatter(
             x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg'],
@@ -274,11 +282,8 @@ with tab_insight:
             name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
         ))
         
-        # FIX: Y-axis starting at 0, X-axis formatted to Month-Day
-        fig_l.update_layout(
-            yaxis=dict(rangemode='tozero'),
-            xaxis=dict(tickformat="%b %-d")
-        )
+        # Y-axis starting at 0, X-axis formatted to Month-Day
+        fig_l.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_l, use_container_width=True, help="Trendline of brand visibility separated by LLM platform.")
     else:
@@ -297,9 +302,10 @@ with tab_insight:
         right_df = scope_df_1[scope_df_1['AI platform'].isin(selected_plats)]
         
     if not right_df.empty:
+        # Calculate Brand SoV per Country
         r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
-        r_brand = right_df[right_df['mentioned_brands'] == brand_1].groupby(['date', 'country']).size().reset_index(name='brand_count')
-        r_merged = pd.merge(r_totals, r_brand, on=['date', 'country'], how='left').fillna(0)
+        r_brand = right_df.groupby(['date', 'country', 'mentioned_brands']).size().reset_index(name='brand_count')
+        r_merged = pd.merge(r_totals, r_brand[r_brand['mentioned_brands'] == brand_1], on=['date', 'country'], how='left').fillna(0)
         
         # Filter out countries where the brand has absolute zero presence
         valid_countries = r_merged.groupby('country')['brand_count'].sum()
@@ -309,12 +315,12 @@ with tab_insight:
         r_merged['sov'] = (r_merged['brand_count'] / r_merged['total']) * 100
         
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
-                        labels={'sov': 'Share of Voice (%)'}, height=400)
+                        labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         
-        # True Fluctuating Weekly Industry Average for Countries
-        geo_uniques = right_df.groupby(['date', 'country'])['mentioned_brands'].nunique().reset_index(name='unique')
-        geo_uniques['geo_avg'] = 100.0 / geo_uniques['unique'].replace(0, 1)
-        ind_avg_df_r = geo_uniques.groupby('date')['geo_avg'].mean().reset_index(name='ind_avg')
+        # True Weekly Industry Average
+        all_r_sov = pd.merge(r_brand, r_totals, on=['date', 'country'])
+        all_r_sov['sov'] = (all_r_sov['brand_count'] / all_r_sov['total']) * 100
+        ind_avg_df_r = all_r_sov.groupby('date')['sov'].mean().reset_index(name='ind_avg')
         
         fig_r.add_trace(go.Scatter(
             x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg'],
@@ -322,11 +328,8 @@ with tab_insight:
             name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
         ))
         
-        # FIX: Y-axis starting at 0, X-axis formatted to Month-Day
-        fig_r.update_layout(
-            yaxis=dict(rangemode='tozero'),
-            xaxis=dict(tickformat="%b %-d")
-        )
+        # Y-axis starting at 0, X-axis formatted to Month-Day
+        fig_r.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_r, use_container_width=True, help="Trendline of brand visibility separated by Country.")
     else:
@@ -408,14 +411,11 @@ with tab_sov:
         filtered_daily = daily_counts[daily_counts['mentioned_brands'].isin(top_10)]
         
         fig_time_comp = px.line(filtered_daily, x='date', y='sov_pct', color='mentioned_brands',
-                           labels={'sov_pct': 'Share of Voice (%)'},
+                           labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
                            markers=True)
         
-        # FIX: Y-axis to zero and Dates formatted
-        fig_time_comp.update_layout(
-            yaxis=dict(rangemode='tozero'),
-            xaxis=dict(tickformat="%b %-d")
-        )
+        # Y-axis to zero and Dates formatted
+        fig_time_comp.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_comp.update_traces(opacity=0.3)
         fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
         st.plotly_chart(fig_time_comp, use_container_width=True, help="Your selected brand is highlighted with a thicker, solid line.")
@@ -432,7 +432,7 @@ with tab_sov:
         plat_filtered = plat_counts[plat_counts['mentioned_brands'].isin(top_10)]
         
         fig_plat = px.bar(plat_filtered, x='AI platform', y='count', color='mentioned_brands',
-                          barmode='stack')
+                          barmode='stack', labels={'count': 'Mentions', 'AI platform': ''})
         st.plotly_chart(fig_plat, use_container_width=True, help="Total aggregated mentions per platform broken down by top competitors.")
     else:
         st.info("No platform data available.")
