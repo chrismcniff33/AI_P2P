@@ -16,7 +16,6 @@ st.markdown("""
         .block-container {padding-top: 5rem; padding-bottom: 2rem;}
         h1 {color: #1e293b; font-family: 'Helvetica Neue', sans-serif; margin-bottom: 0.5rem;}
         
-        /* Custom Metric Card Styling */
         .custom-metric {
             background-color: #f8fafc;
             padding: 20px;
@@ -26,7 +25,6 @@ st.markdown("""
             height: 100%;
         }
         
-        /* Native Tab Styling Improvements */
         .stTabs [data-baseweb="tab-list"] {gap: 8px; border-bottom: 2px solid #e5e7eb; margin-top: 0.5rem;}
         .stTabs [data-baseweb="tab"] {
             height: 45px; 
@@ -65,7 +63,47 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- 3. DATA LOADING & ENGINEERING ---
+# --- 3. GLOBAL LEXICONS FOR FAST NLP ---
+attribute_lexicon = {
+    'organic': '🟢', 'natural': '🟢', 'vegan': '🟢', 'sulfate-free': '🟢', 'paraben-free': '🟢',
+    'grain-free': '🟢', 'probiotics': '🟢', 'hyaluronic': '🟢', 'collagen': '🟢', 'non-gmo': '🟢',
+    'delicious': '🟢', 'smooth': '🟢', 'refreshing': '🟢', 'soothing': '🟢', 'hydrating': '🟢',
+    'moisturizing': '🟢', 'nourishing': '🟢', 'repairing': '🟢', 'strengthening': '🟢',
+    'anti-aging': '🟢', 'fast-acting': '🟢', 'durable': '🟢', 'reliable': '🟢', 'effective': '🟢',
+    'sturdy': '🟢', 'sharp': '🟢', 'crisp': '🟢', 'affordable': '🟢', 'premium': '🟢', 'value': '🟢',
+    'convenient': '🟢', 'easy': '🟢', 'quick': '🟢', 'portable': '🟢', 'compact': '🟢',
+    'sustainable': '🟢', 'eco-friendly': '🟢', 'recyclable': '🟢', 'cruelty-free': '🟢',
+    'ethical': '🟢', 'biodegradable': '🟢', 'high-quality': '🟢', 'quality': '🟢', 'safe': '🟢',
+    'healthy': '🟢', 'toxic': '🔴', 'artificial': '🔴', 'preservatives': '🔴', 'fillers': '🔴', 'bland': '🔴',
+    'stinky': '🔴', 'greasy': '🔴', 'sticky': '🔴', 'bitter': '🔴', 'useless': '🔴',
+    'ineffective': '🔴', 'weak': '🔴', 'slow': '🔴', 'flimsy': '🔴', 'laggy': '🔴',
+    'glitchy': '🔴', 'cheap': '🔴', 'expensive': '🔴', 'overpriced': '🔴', 'bulky': '🔴',
+    'heavy': '🔴', 'dry': '🔴', 'damaged': '🔴', 'chicken': '🟡', 'beef': '🟡', 'salmon': '🟡', 'protein': '🟡', 'vitamins': '🟡',
+    'minerals': '🟡', 'keratin': '🟡', 'aloe': '🟡', 'taste': '🟡', 'flavor': '🟡',
+    'smell': '🟡', 'scent': '🟡', 'fragrance': '🟡', 'texture': '🟡', 'crunchy': '🟡',
+    'soft': '🟡', 'chewy': '🟡', 'budget': '🟡', 'large': '🟡', 'small': '🟡', 'bulk': '🟡',
+    'travel-size': '🟡', 'pack': '🟡', 'oled': '🟡', 'led': '🟡', '4k': '🟡', 'smart': '🟡',
+    'size': '🟡', 'ingredients': '🟡', 'packaging': '🟡'
+}
+
+theme_mapping = {
+    "Ingredients & Formulation": ['organic', 'natural', 'vegan', 'sulfate-free', 'paraben-free', 'grain-free', 'probiotics', 'hyaluronic', 'collagen', 'non-gmo', 'toxic', 'artificial', 'preservatives', 'fillers', 'chicken', 'beef', 'salmon', 'protein', 'vitamins', 'minerals', 'keratin', 'aloe', 'ingredients'],
+    "Sensory & Experience": ['delicious', 'smooth', 'refreshing', 'soothing', 'bland', 'stinky', 'greasy', 'sticky', 'bitter', 'taste', 'flavor', 'smell', 'scent', 'fragrance', 'texture', 'crunchy', 'soft', 'chewy'],
+    "Performance & Efficacy": ['hydrating', 'moisturizing', 'nourishing', 'repairing', 'strengthening', 'anti-aging', 'fast-acting', 'durable', 'reliable', 'effective', 'sturdy', 'sharp', 'crisp', 'high-quality', 'quality', 'safe', 'healthy', 'useless', 'ineffective', 'weak', 'slow', 'flimsy', 'laggy', 'glitchy', 'dry', 'damaged'],
+    "Price & Value": ['affordable', 'premium', 'value', 'cheap', 'expensive', 'overpriced', 'budget'],
+    "Convenience & Format": ['convenient', 'easy', 'quick', 'portable', 'compact', 'bulky', 'heavy', 'large', 'small', 'bulk', 'travel-size', 'pack', 'size', 'packaging'],
+    "Sustainability": ['sustainable', 'eco-friendly', 'recyclable', 'cruelty-free', 'ethical', 'biodegradable']
+}
+
+# Pre-compile the regex pattern for blazing fast extraction
+attribute_pattern = re.compile(r'\b(' + '|'.join([re.escape(k) for k in attribute_lexicon.keys()]) + r')\b', re.IGNORECASE)
+
+def extract_attributes_fast(text):
+    if pd.isna(text): return []
+    # Lowercase first, then findall, then set to get unique hits per response
+    return list(set(attribute_pattern.findall(str(text).lower())))
+
+# --- 4. DATA LOADING & PRE-COMPUTATION ---
 @st.cache_data
 def load_and_enrich_data():
     try:
@@ -82,11 +120,7 @@ def load_and_enrich_data():
         "Dietary supplements": ["Examine.com", "Healthline", "NIH.gov", "Amazon Reviews", "Labdoor", "Reddit r/Supplements"]
     }
 
-    def assign_source(row):
-        cat_sources = source_db.get(row['category'], ["General Web Search"])
-        return random.choice(cat_sources)
-
-    df['source_citation'] = df.apply(assign_source, axis=1)
+    df['source_citation'] = df.apply(lambda row: random.choice(source_db.get(row['category'], ["General Web Search"])), axis=1)
     
     if 'criteria' not in df.columns:
         criteria_map = {
@@ -117,18 +151,16 @@ def load_and_enrich_data():
         "Ritual", "Care/of", "Athletic Greens", "AG1", "Hum Nutrition", "Vital Proteins", "Seed", "Moon Juice", "Sakara", "Persona", "Bulletproof",
         "HealthKart", "Patanjali", "Dabur", "Baidyanath", "Organic India", "Zandu", "Nutrilite", "Becosules", "Shelcal", "TrueBasics", "MuscleBlaze", "Revital", "Seven Seas", "Fast&Up", "Optimum Nutrition", "BigMuscles", "MyProtein", "Wellbeing Nutrition", "Oziva", "Kapiva", "Power Gummies", "Plix", "Setu", "Man Matters", "Boldfit"
     ]
-    
     brand_patterns = {brand: re.compile(re.escape(brand), re.IGNORECASE) for brand in known_brands}
 
     def extract_brands_nlp(text):
-        found = []
         text_str = str(text)
-        for brand, pattern in brand_patterns.items():
-            if pattern.search(text_str):
-                found.append(brand)
-        return found
+        return [brand for brand, pattern in brand_patterns.items() if pattern.search(text_str)]
     
+    # ⚡️ PERFORMANCE UPGRADE: Pre-extract brands AND NLP attributes during caching
     df['mentioned_brands'] = df['response'].apply(extract_brands_nlp)
+    df['extracted_attributes'] = df['response'].apply(extract_attributes_fast)
+    
     df_exploded = df.explode('mentioned_brands').dropna(subset=['mentioned_brands'])
     
     return df, df_exploded
@@ -140,7 +172,7 @@ if df_exploded.empty:
     st.stop()
 
 
-# --- 4. TOP LEVEL NAVIGATION ---
+# --- 5. TOP LEVEL NAVIGATION ---
 st.title("AI Path to Purchase")
 
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
@@ -149,7 +181,6 @@ tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "🔍 Search Criteria & Perception", 
     "🔗 Source Intelligence"
 ])
-
 
 # === TAB 1: SHARE OF VOICE OVERVIEW ===
 with tab_insight:
@@ -173,7 +204,6 @@ with tab_insight:
     wk_sov = pd.merge(wk_brands, wk_totals, on='date')
     wk_sov['sov'] = (wk_sov['count'] / wk_sov['total']) * 100
     weekly_ind_avg = wk_sov.groupby('date')['sov'].mean()
-    
     ind_avg_sov = weekly_ind_avg.mean() if not weekly_ind_avg.empty else 0
     
     global_mentions = len(scope_df_1)
@@ -193,25 +223,20 @@ with tab_insight:
     
     hm_df = pd.merge(hm_totals, hm_brand, on=['country', 'AI platform'], how='left').fillna(0)
     hm_df = pd.merge(hm_df, hm_unique, on=['country', 'AI platform'])
-    
     hm_df['sov'] = (hm_df['brand_count'] / hm_df['total']) * 100
     hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
-    
     hm_valid = hm_df[(hm_df['total'] > 0) & (hm_df['index_vs_avg'] > 0)]
     
     if not hm_valid.empty:
         idx_max = hm_valid['index_vs_avg'].idxmax()
         top_strength_str = f"{hm_valid.loc[idx_max, 'AI platform']} in {hm_valid.loc[idx_max, 'country']} 🏆"
-        
         idx_min = hm_valid['index_vs_avg'].idxmin()
         top_weakness_str = f"{hm_valid.loc[idx_min, 'AI platform']} in {hm_valid.loc[idx_min, 'country']} ⚠️"
     else:
-        top_strength_str = "N/A"
-        top_weakness_str = "N/A"
+        top_strength_str, top_weakness_str = "N/A", "N/A"
 
     c1, c2, c3 = st.columns(3)
-    
     header_color = "#10b981" if visibility in ["Good", "Excellent"] else "#ef4444" if visibility == "Low" else "#f59e0b"
     c1.markdown(f"""
     <div class="custom-metric">
@@ -220,7 +245,6 @@ with tab_insight:
         <div style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-top: 5px;">Industry Avg: {ind_avg_sov:.1f}%</div>
     </div>
     """, unsafe_allow_html=True)
-    
     c2.markdown(f"""
     <div class="custom-metric">
         <div style="color: #64748b; font-size: 14px; font-weight: 600;">Top Strength <span title="The platform & market where your brand over-indexes the most vs competitors. Driven directly by the Heatmap.">ℹ️</span></div>
@@ -228,7 +252,6 @@ with tab_insight:
         <div style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-top: 5px;">Based on Index vs Avg</div>
     </div>
     """, unsafe_allow_html=True)
-    
     c3.markdown(f"""
     <div class="custom-metric">
         <div style="color: #64748b; font-size: 14px; font-weight: 600;">Area for Improvement <span title="The platform & market where your brand under-indexes the most vs competitors. Driven directly by the Heatmap.">ℹ️</span></div>
@@ -242,12 +265,8 @@ with tab_insight:
     
     st.markdown("#### SoV by AI Platform")
     all_geos_options = ["Global"] + sorted(scope_df_1['country'].unique())
-    selected_geos = st.multiselect("Filter Geography", all_geos_options, default=["Global"], key="geo_filter", help="Isolate the trendline data to specific countries.")
-    
-    if "Global" in selected_geos:
-        left_df = scope_df_1
-    else:
-        left_df = scope_df_1[scope_df_1['country'].isin(selected_geos)]
+    selected_geos = st.multiselect("Filter Geography", all_geos_options, default=["Global"], key="geo_filter")
+    left_df = scope_df_1 if "Global" in selected_geos else scope_df_1[scope_df_1['country'].isin(selected_geos)]
         
     if not left_df.empty:
         l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
@@ -255,30 +274,21 @@ with tab_insight:
         l_merged = pd.merge(l_totals, l_brand[l_brand['mentioned_brands'] == brand_1], on=['date', 'AI platform'], how='left').fillna(0)
         
         valid_platforms = l_merged.groupby('AI platform')['brand_count'].sum()
-        valid_platforms = valid_platforms[valid_platforms > 0].index
-        l_merged = l_merged[l_merged['AI platform'].isin(valid_platforms)]
-        
+        l_merged = l_merged[l_merged['AI platform'].isin(valid_platforms[valid_platforms > 0].index)]
         l_merged['sov'] = (l_merged['brand_count'] / l_merged['total']) * 100
         
-        fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
-                        labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
-        
+        fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         fig_l.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
-        st.plotly_chart(fig_l, use_container_width=True, key="tab1_line_plat", help="Trendline of brand visibility separated by LLM platform.")
+        st.plotly_chart(fig_l, use_container_width=True, key="tab1_line_plat")
     else:
         st.info("No data available for the selected geography.")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
     st.markdown("#### SoV by Geography")
     all_plats_options = ["All AI Platforms"] + sorted(scope_df_1['AI platform'].unique())
-    selected_plats = st.multiselect("Filter AI Platform", all_plats_options, default=["All AI Platforms"], key="plat_filter", help="Isolate the geographic trends to specific LLMs.")
-    
-    if "All AI Platforms" in selected_plats:
-        right_df = scope_df_1
-    else:
-        right_df = scope_df_1[scope_df_1['AI platform'].isin(selected_plats)]
+    selected_plats = st.multiselect("Filter AI Platform", all_plats_options, default=["All AI Platforms"], key="plat_filter")
+    right_df = scope_df_1 if "All AI Platforms" in selected_plats else scope_df_1[scope_df_1['AI platform'].isin(selected_plats)]
         
     if not right_df.empty:
         r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
@@ -286,52 +296,31 @@ with tab_insight:
         r_merged = pd.merge(r_totals, r_brand[r_brand['mentioned_brands'] == brand_1], on=['date', 'country'], how='left').fillna(0)
         
         valid_countries = r_merged.groupby('country')['brand_count'].sum()
-        valid_countries = valid_countries[valid_countries > 0].index
-        r_merged = r_merged[r_merged['country'].isin(valid_countries)]
-        
+        r_merged = r_merged[r_merged['country'].isin(valid_countries[valid_countries > 0].index)]
         r_merged['sov'] = (r_merged['brand_count'] / r_merged['total']) * 100
         
-        fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
-                        labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
-        
+        fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True, labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         fig_r.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
-        st.plotly_chart(fig_r, use_container_width=True, key="tab1_line_geo", help="Trendline of brand visibility separated by Country.")
+        st.plotly_chart(fig_r, use_container_width=True, key="tab1_line_geo")
     else:
         st.info("No data available for the selected AI Platform.")
             
     st.markdown("---")
-    
     st.subheader("Strategic Heatmap: Geographies vs AI Platforms", help="Displays your brand's Index vs Industry Average. 100 = Average. Grey with '-' means the brand has no presence or the AI platform is not available in this market.")
     
     hm_pivot = hm_df.pivot(index='country', columns='AI platform', values='index_vs_avg')
     hm_totals_pivot = hm_df.pivot(index='country', columns='AI platform', values='total')
-    
-    y_order = ["USA", "Brazil", "India", "China", "Indonesia"]
-    x_order = ["Gemini", "Chat GPT", "Amazon Rufus", "Qwen", "AI Lazzie"]
-    
+    y_order, x_order = ["USA", "Brazil", "India", "China", "Indonesia"], ["Gemini", "Chat GPT", "Amazon Rufus", "Qwen", "AI Lazzie"]
     hm_pivot = hm_pivot.reindex(index=y_order, columns=x_order)
     hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
     
     mask = (hm_totals_pivot > 0) & (hm_pivot > 0)
     hm_pivot_masked = hm_pivot.where(mask, np.nan)
     
-    text_array = []
-    for r in hm_pivot_masked.values:
-        row = []
-        for v in r:
-            if pd.isna(v):
-                row.append("-")
-            else:
-                row.append(f"{v:.0f}")
-        text_array.append(row)
+    text_array = [["-" if pd.isna(v) else f"{v:.0f}" for v in r] for r in hm_pivot_masked.values]
     
-    fig_hm = px.imshow(hm_pivot_masked, 
-                       aspect="auto",
-                       color_continuous_scale="RdYlGn",
-                       color_continuous_midpoint=100, 
-                       labels=dict(x="AI Platform", y="Geography", color="Index"))
-    
+    fig_hm = px.imshow(hm_pivot_masked, aspect="auto", color_continuous_scale="RdYlGn", color_continuous_midpoint=100, labels=dict(x="AI Platform", y="Geography", color="Index"))
     fig_hm.update_traces(text=text_array, texttemplate="%{text}")
     fig_hm.update_layout(xaxis_title="", yaxis_title="", yaxis=dict(autorange="reversed"), plot_bgcolor="#e2e8f0")
     st.plotly_chart(fig_hm, use_container_width=True, key="tab1_heatmap")
@@ -352,12 +341,10 @@ with tab_sov:
         st.stop()
         
     st.markdown("---")
-
     st.subheader("Competitive Share of Voice Analysis", help="Compare your brand directly against the top 10 competitors in this category.")
     st.markdown("#### SoV Evolution", help="Only countries and AI platforms where the brand selected in the main filter is present are available to view in this chart.")
     
     f1_2, f2_2 = st.columns(2)
-    
     brand_2_presence_df = scope_df_2[scope_df_2['mentioned_brands'] == brand_2]
     avail_countries_2 = sorted(brand_2_presence_df['country'].unique()) if not brand_2_presence_df.empty else []
     avail_platforms_2 = sorted(brand_2_presence_df['AI platform'].unique()) if not brand_2_presence_df.empty else []
@@ -365,35 +352,25 @@ with tab_sov:
     sel_countries_2 = f1_2.multiselect("🌍 Filter by Country", avail_countries_2, default=avail_countries_2, key="trend_country")
     sel_platforms_2 = f2_2.multiselect("🤖 Filter by AI Platform", avail_platforms_2, default=avail_platforms_2, key="trend_plat")
     
-    line_scope_df = scope_df_2[
-        (scope_df_2['country'].isin(sel_countries_2)) & 
-        (scope_df_2['AI platform'].isin(sel_platforms_2))
-    ]
-    
+    line_scope_df = scope_df_2[(scope_df_2['country'].isin(sel_countries_2)) & (scope_df_2['AI platform'].isin(sel_platforms_2))]
     daily_counts = line_scope_df.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
     
     if not daily_counts.empty:
         daily_totals = daily_counts.groupby('date')['count'].transform('sum')
         daily_counts['sov_pct'] = (daily_counts['count'] / daily_totals) * 100
-        
         top_10 = line_scope_df['mentioned_brands'].value_counts().head(10).index.tolist()
         if brand_2 not in top_10: top_10.append(brand_2) 
         
         filtered_daily = daily_counts[daily_counts['mentioned_brands'].isin(top_10)]
-        
-        fig_time_comp = px.line(filtered_daily, x='date', y='sov_pct', color='mentioned_brands',
-                           labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
-                           markers=True)
-        
+        fig_time_comp = px.line(filtered_daily, x='date', y='sov_pct', color='mentioned_brands', labels={'sov_pct': 'Share of Voice (%)', 'date': ''}, markers=True)
         fig_time_comp.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_comp.update_traces(opacity=0.3)
         fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
-        st.plotly_chart(fig_time_comp, use_container_width=True, key="tab2_line_comp", help="Your selected brand is highlighted with a thicker, solid line. Data reflects the dropdown filters directly above.")
+        st.plotly_chart(fig_time_comp, use_container_width=True, key="tab2_line_comp")
     else:
         st.info("No timeline data available for these filter selections.")
     
     st.markdown("---")
-    
     st.markdown("#### Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across all available markets and AI platforms.")
     
     available_competitors = [b for b in brands_2 if b != brand_2]
@@ -402,7 +379,6 @@ with tab_sov:
     if competitor_brand:
         cp_totals = scope_df_2.groupby(['country', 'AI platform']).size().reset_index(name='total')
         cp_brands = scope_df_2.groupby(['country', 'AI platform', 'mentioned_brands']).size().reset_index(name='count')
-        
         cp_brands['rank'] = cp_brands.groupby(['country', 'AI platform'])['count'].rank(method='min', ascending=False)
         
         focus_df = cp_brands[cp_brands['mentioned_brands'] == brand_2].set_index(['country', 'AI platform'])
@@ -414,8 +390,7 @@ with tab_sov:
         compare_df['focus_count'] = focus_df['count'].fillna(0)
         compare_df['comp_count'] = comp_df['count'].fillna(0)
         
-        valid_combos = compare_df[(compare_df['focus_count'] > 0) | (compare_df['comp_count'] > 0)].index
-        compare_df = compare_df.loc[valid_combos].reset_index()
+        compare_df = compare_df.loc[compare_df[(compare_df['focus_count'] > 0) | (compare_df['comp_count'] > 0)].index].reset_index()
         
         if not compare_df.empty:
             focus_pivot = compare_df.pivot(index='country', columns='AI platform', values='focus_rank')
@@ -423,47 +398,31 @@ with tab_sov:
             
             all_countries = sorted(list(set(focus_pivot.index) | set(comp_pivot.index)))
             all_platforms = sorted(list(set(focus_pivot.columns) | set(comp_pivot.columns)))
+            focus_pivot, comp_pivot = focus_pivot.reindex(index=all_countries, columns=all_platforms), comp_pivot.reindex(index=all_countries, columns=all_platforms)
             
-            focus_pivot = focus_pivot.reindex(index=all_countries, columns=all_platforms)
-            comp_pivot = comp_pivot.reindex(index=all_countries, columns=all_platforms)
-            
-            color_matrix = pd.DataFrame(np.nan, index=all_countries, columns=all_platforms)
-            focus_text = pd.DataFrame("-", index=all_countries, columns=all_platforms)
-            comp_text = pd.DataFrame("-", index=all_countries, columns=all_platforms)
+            color_matrix, focus_text, comp_text = pd.DataFrame(np.nan, index=all_countries, columns=all_platforms), pd.DataFrame("-", index=all_countries, columns=all_platforms), pd.DataFrame("-", index=all_countries, columns=all_platforms)
             
             for c in all_platforms:
                 for r in all_countries:
-                    f_val = focus_pivot.loc[r, c]
-                    c_val = comp_pivot.loc[r, c]
-                    
+                    f_val, c_val = focus_pivot.loc[r, c], comp_pivot.loc[r, c]
                     if pd.notna(f_val): focus_text.loc[r, c] = f"Rank {int(f_val)}"
                     if pd.notna(c_val): comp_text.loc[r, c] = f"Rank {int(c_val)}"
                     
-                    if pd.isna(f_val) and pd.isna(c_val):
-                        color_matrix.loc[r, c] = np.nan
-                    elif pd.isna(f_val):
-                        color_matrix.loc[r, c] = -1 
-                    elif pd.isna(c_val):
-                        color_matrix.loc[r, c] = 1
-                    else:
-                        if f_val < c_val: color_matrix.loc[r, c] = 1
-                        elif f_val > c_val: color_matrix.loc[r, c] = -1
-                        else: color_matrix.loc[r, c] = 0
+                    if pd.isna(f_val) and pd.isna(c_val): color_matrix.loc[r, c] = np.nan
+                    elif pd.isna(f_val): color_matrix.loc[r, c] = -1 
+                    elif pd.isna(c_val): color_matrix.loc[r, c] = 1
+                    else: color_matrix.loc[r, c] = 1 if f_val < c_val else -1 if f_val > c_val else 0
 
             col_hm1, col_hm2 = st.columns(2)
-            
             with col_hm1:
                 st.markdown(f"**{brand_2} Ranking**")
                 fig_focus = px.imshow(color_matrix, aspect="auto", color_continuous_scale=['#ef4444', '#f59e0b', '#10b981'], zmin=-1, zmax=1)
                 fig_focus.update_traces(text=focus_text.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_focus.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_focus, use_container_width=True, key="tab2_hm_focus")
-                
             with col_hm2:
                 st.markdown(f"**{competitor_brand} Ranking**")
-                max_rank = cp_brands['rank'].max()
-                comp_color = max_rank - comp_pivot
-                fig_comp = px.imshow(comp_color, aspect="auto", color_continuous_scale="Blues")
+                fig_comp = px.imshow(cp_brands['rank'].max() - comp_pivot, aspect="auto", color_continuous_scale="Blues")
                 fig_comp.update_traces(text=comp_text.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_comp.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_comp, use_container_width=True, key="tab2_hm_comp")
@@ -488,11 +447,9 @@ with tab_semantic:
         st.stop()
         
     st.markdown("---")
-    
     st.subheader("Share of Voice by Search Criteria", help="Analyze how your brand's visibility fluctuates based on specific shopper search intents (e.g. Budget vs Premium).")
     
     f1_3, f2_3, f3_3 = st.columns(3)
-    
     brand_3_presence_df = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
     avail_countries_3 = sorted(brand_3_presence_df['country'].unique()) if not brand_3_presence_df.empty else []
     avail_platforms_3 = sorted(brand_3_presence_df['AI platform'].unique()) if not brand_3_presence_df.empty else []
@@ -502,85 +459,36 @@ with tab_semantic:
     sel_platforms_3 = f2_3.multiselect("🤖 Filter by AI Platform", avail_platforms_3, default=avail_platforms_3, key="crit_plat")
     sel_criteria_3 = f3_3.multiselect("🔎 Filter by Criteria", avail_criteria_3, default=avail_criteria_3, key="crit_crit")
     
-    crit_scope_df = scope_df_3[
-        (scope_df_3['country'].isin(sel_countries_3)) & 
-        (scope_df_3['AI platform'].isin(sel_platforms_3)) &
-        (scope_df_3['criteria'].astype(str).isin(sel_criteria_3))
-    ]
-    
+    crit_scope_df = scope_df_3[(scope_df_3['country'].isin(sel_countries_3)) & (scope_df_3['AI platform'].isin(sel_platforms_3)) & (scope_df_3['criteria'].astype(str).isin(sel_criteria_3))]
     daily_counts_3 = crit_scope_df.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
     
     if not daily_counts_3.empty:
         daily_totals_3 = daily_counts_3.groupby('date')['count'].transform('sum')
         daily_counts_3['sov_pct'] = (daily_counts_3['count'] / daily_totals_3) * 100
-        
         top_10_crit = crit_scope_df['mentioned_brands'].value_counts().head(10).index.tolist()
         if brand_3 not in top_10_crit: top_10_crit.append(brand_3) 
         
         filtered_daily_3 = daily_counts_3[daily_counts_3['mentioned_brands'].isin(top_10_crit)]
-        
-        fig_time_crit = px.line(filtered_daily_3, x='date', y='sov_pct', color='mentioned_brands',
-                           labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
-                           markers=True)
-        
+        fig_time_crit = px.line(filtered_daily_3, x='date', y='sov_pct', color='mentioned_brands', labels={'sov_pct': 'Share of Voice (%)', 'date': ''}, markers=True)
         fig_time_crit.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_crit.update_traces(opacity=0.3)
         fig_time_crit.update_traces(selector={'name':brand_3}, opacity=1, line={'width': 4})
-        st.plotly_chart(fig_time_crit, use_container_width=True, key="tab3_line_crit", help="Trendline of Share of Voice specifically for the selected search criteria.")
+        st.plotly_chart(fig_time_crit, use_container_width=True, key="tab3_line_crit")
     else:
         st.info("No timeline data available for these filter selections.")
         
     st.markdown("---")
 
-    # --- ADVANCED NLP DESCRIPTOR SECTION ---
+    # --- ADVANCED FAST NLP DESCRIPTOR SECTION ---
     st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact descriptors & attributes AI assistants use when recommending this brand.")
     
-    # Custom Lexicon: Targeted search for high-value CPG and Tech attributes + Sentiment assignment
-    attribute_lexicon = {
-        'organic': '🟢', 'natural': '🟢', 'vegan': '🟢', 'sulfate-free': '🟢', 'paraben-free': '🟢',
-        'grain-free': '🟢', 'probiotics': '🟢', 'hyaluronic': '🟢', 'collagen': '🟢', 'non-gmo': '🟢',
-        'delicious': '🟢', 'smooth': '🟢', 'refreshing': '🟢', 'soothing': '🟢', 'hydrating': '🟢',
-        'moisturizing': '🟢', 'nourishing': '🟢', 'repairing': '🟢', 'strengthening': '🟢',
-        'anti-aging': '🟢', 'fast-acting': '🟢', 'durable': '🟢', 'reliable': '🟢', 'effective': '🟢',
-        'sturdy': '🟢', 'sharp': '🟢', 'crisp': '🟢', 'affordable': '🟢', 'premium': '🟢', 'value': '🟢',
-        'convenient': '🟢', 'easy': '🟢', 'quick': '🟢', 'portable': '🟢', 'compact': '🟢',
-        'sustainable': '🟢', 'eco-friendly': '🟢', 'recyclable': '🟢', 'cruelty-free': '🟢',
-        'ethical': '🟢', 'biodegradable': '🟢', 'high-quality': '🟢', 'quality': '🟢', 'safe': '🟢',
-        'healthy': '🟢', 'toxic': '🔴', 'artificial': '🔴', 'preservatives': '🔴', 'fillers': '🔴', 'bland': '🔴',
-        'stinky': '🔴', 'greasy': '🔴', 'sticky': '🔴', 'bitter': '🔴', 'useless': '🔴',
-        'ineffective': '🔴', 'weak': '🔴', 'slow': '🔴', 'flimsy': '🔴', 'laggy': '🔴',
-        'glitchy': '🔴', 'cheap': '🔴', 'expensive': '🔴', 'overpriced': '🔴', 'bulky': '🔴',
-        'heavy': '🔴', 'dry': '🔴', 'damaged': '🔴', 'chicken': '🟡', 'beef': '🟡', 'salmon': '🟡', 'protein': '🟡', 'vitamins': '🟡',
-        'minerals': '🟡', 'keratin': '🟡', 'aloe': '🟡', 'taste': '🟡', 'flavor': '🟡',
-        'smell': '🟡', 'scent': '🟡', 'fragrance': '🟡', 'texture': '🟡', 'crunchy': '🟡',
-        'soft': '🟡', 'chewy': '🟡', 'budget': '🟡', 'large': '🟡', 'small': '🟡', 'bulk': '🟡',
-        'travel-size': '🟡', 'pack': '🟡', 'oled': '🟡', 'led': '🟡', '4k': '🟡', 'smart': '🟡',
-        'size': '🟡', 'ingredients': '🟡', 'packaging': '🟡'
-    }
-    
     brand_3_data = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
-    brand_responses = brand_3_data['response'].dropna().astype(str)
     
-    # Extract only words that explicitly exist in the high-value lexicon
-    extracted_features = []
-    for resp in brand_responses:
-        text_lower = resp.lower()
-        for attr, icon in attribute_lexicon.items():
-            if re.search(r'\b' + re.escape(attr) + r'\b', text_lower):
-                extracted_features.append(attr)
-                
-    # Strategic Bucketing based on the lexicon
-    theme_mapping = {
-        "Ingredients & Formulation": ['organic', 'natural', 'vegan', 'sulfate-free', 'paraben-free', 'grain-free', 'probiotics', 'hyaluronic', 'collagen', 'non-gmo', 'toxic', 'artificial', 'preservatives', 'fillers', 'chicken', 'beef', 'salmon', 'protein', 'vitamins', 'minerals', 'keratin', 'aloe', 'ingredients'],
-        "Sensory & Experience": ['delicious', 'smooth', 'refreshing', 'soothing', 'bland', 'stinky', 'greasy', 'sticky', 'bitter', 'taste', 'flavor', 'smell', 'scent', 'fragrance', 'texture', 'crunchy', 'soft', 'chewy'],
-        "Performance & Efficacy": ['hydrating', 'moisturizing', 'nourishing', 'repairing', 'strengthening', 'anti-aging', 'fast-acting', 'durable', 'reliable', 'effective', 'sturdy', 'sharp', 'crisp', 'high-quality', 'quality', 'safe', 'healthy', 'useless', 'ineffective', 'weak', 'slow', 'flimsy', 'laggy', 'glitchy', 'dry', 'damaged'],
-        "Price & Value": ['affordable', 'premium', 'value', 'cheap', 'expensive', 'overpriced', 'budget'],
-        "Convenience & Format": ['convenient', 'easy', 'quick', 'portable', 'compact', 'bulky', 'heavy', 'large', 'small', 'bulk', 'travel-size', 'pack', 'size', 'packaging'],
-        "Sustainability": ['sustainable', 'eco-friendly', 'recyclable', 'cruelty-free', 'ethical', 'biodegradable']
-    }
+    # ⚡️ PERFORMANCE UPGRADE: Fast flattening of pre-extracted attributes
+    extracted_features = [attr for sublist in brand_3_data['extracted_attributes'] if isinstance(sublist, list) for attr in sublist]
 
     if extracted_features:
-        total_brand_mentions = len(brand_responses)
+        total_brand_mentions = len(brand_3_data)
         word_counts = Counter(extracted_features).most_common(12)
         
         wc_data = []
@@ -592,14 +500,11 @@ with tab_semantic:
         wc_df = pd.DataFrame(wc_data)
         
         c1, c2 = st.columns([1, 1])
-        
         with c1:
             st.markdown("#### Top Descriptors & Attributes (%)")
-            fig_bar = px.bar(wc_df, x='Percentage', y='Keyword_Display', orientation='h',
-                             color='Percentage', color_continuous_scale='Blues',
-                             labels={'Percentage': '% of Brand Mentions', 'Keyword_Display': ''})
+            fig_bar = px.bar(wc_df, x='Percentage', y='Keyword_Display', orientation='h', color='Percentage', color_continuous_scale='Blues', labels={'Percentage': '% of Mentions', 'Keyword_Display': ''})
             fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig_bar, use_container_width=True, key="tab3_bar_words", help="The percentage of AI responses about your brand that specifically mention these high-value product attributes. 🟢 Positive | 🟡 Neutral | 🔴 Negative")
+            st.plotly_chart(fig_bar, use_container_width=True, key="tab3_bar_words")
             
         with c2:
             st.markdown("#### Thematic Radar (%)")
@@ -610,35 +515,31 @@ with tab_semantic:
                         theme_scores[theme] += 1
             
             total_theme_hits = sum(theme_scores.values())
-            theme_data = []
-            for theme, count in theme_scores.items():
-                pct = (count / total_theme_hits) * 100 if total_theme_hits > 0 else 0
-                theme_data.append({'Theme': theme, 'Percentage': pct})
+            theme_data = [{'Theme': t, 'Percentage': (c / total_theme_hits) * 100 if total_theme_hits > 0 else 0} for t, c in theme_scores.items()]
                 
-            theme_df = pd.DataFrame(theme_data)
-            fig_radar = px.line_polar(theme_df, r='Percentage', theta='Theme', line_close=True)
+            fig_radar = px.line_polar(pd.DataFrame(theme_data), r='Percentage', theta='Theme', line_close=True)
             fig_radar.update_traces(fill='toself', line_color='#6366f1')
-            st.plotly_chart(fig_radar, use_container_width=True, key="tab3_radar_theme", help="Categorizes the extracted features into strategic positioning themes. Values represent the % share of total attribute mentions.")
+            st.plotly_chart(fig_radar, use_container_width=True, key="tab3_radar_theme")
             
-        # --- Contextual Deep Dive Module (Two-Tier Filter) ---
+        # --- Contextual Deep Dive Module (FAST Two-Tier Filter) ---
         st.markdown("---")
         st.markdown("#### Contextual Deep Dive")
         st.write("Select a strategic theme and drill down into specific descriptors & attributes to understand exactly where and how AI platforms are framing your brand.")
         
         f_theme, f_attr = st.columns(2)
-        
         selected_theme = f_theme.selectbox("🎯 Select Theme:", list(theme_mapping.keys()), key="insight_theme")
         
-        # Determine which words in the selected theme actually appear in this brand's data
+        # Which words actually exist for this brand in this theme?
         theme_present_words = [w for w in set(extracted_features) if w in theme_mapping[selected_theme]]
         
         if theme_present_words:
             selected_attribute = f_attr.selectbox("🔎 Select Descriptor / Attribute:", ["-- Overall Theme Insight --"] + sorted(theme_present_words), key="insight_attr")
             
             if selected_attribute == "-- Overall Theme Insight --":
-                # Aggregate Theme Insight
-                pattern = r'\b(?:' + '|'.join(map(re.escape, theme_present_words)) + r')\b'
-                insight_subset = brand_3_data[brand_3_data['response'].str.contains(pattern, case=False, na=False)]
+                # FAST Vectorized Filter
+                theme_set = set(theme_present_words)
+                mask = brand_3_data['extracted_attributes'].apply(lambda x: bool(set(x) & theme_set) if isinstance(x, list) else False)
+                insight_subset = brand_3_data[mask]
                 
                 if not insight_subset.empty:
                     top_plat = insight_subset['AI platform'].value_counts().index[0]
@@ -651,8 +552,9 @@ with tab_semantic:
                 else:
                     st.info(f"Not enough data to generate an aggregate insight for {selected_theme}.")
             else:
-                # Specific Attribute Insight
-                insight_subset = brand_3_data[brand_3_data['response'].str.contains(r'\b' + re.escape(selected_attribute) + r'\b', case=False, na=False)]
+                # FAST Vectorized Filter
+                mask = brand_3_data['extracted_attributes'].apply(lambda x: selected_attribute in x if isinstance(x, list) else False)
+                insight_subset = brand_3_data[mask]
                 
                 if not insight_subset.empty:
                     top_plat = insight_subset['AI platform'].value_counts().index[0]
@@ -703,9 +605,8 @@ with tab_sources:
         c1, c2 = st.columns([2, 1])
         
         with c1:
-            fig_tree = px.treemap(source_counts, path=['Source'], values='Mentions',
-                                  color='Mentions', color_continuous_scale='RdBu')
-            st.plotly_chart(fig_tree, use_container_width=True, key="tab4_tree_source", help="Size of the box indicates the volume of brand mentions stemming from that specific source.")
+            fig_tree = px.treemap(source_counts, path=['Source'], values='Mentions', color='Mentions', color_continuous_scale='RdBu')
+            st.plotly_chart(fig_tree, use_container_width=True, key="tab4_tree_source")
             
         with c2:
             st.markdown("#### Actionable Targets")
