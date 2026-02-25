@@ -26,20 +26,21 @@ st.markdown("""
 # --- 2. PASSWORD PROTECTION ---
 def check_password():
     def password_entered():
-        if st.session_state["password"] == st.secrets["passwords"]["dashboard_password"]:
+        if hmac.compare_digest(st.session_state["password"], st.secrets["password"]):
             st.session_state["password_correct"] = True
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    if st.session_state.get("password_correct", False):
+    if "password_correct" not in st.session_state:
+        st.text_input("Please enter the company password to access this tool:", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.text_input("Please enter the company password to access this tool:", type="password", on_change=password_entered, key="password")
+        st.error("😕 Password incorrect")
+        return False
+    else:
         return True
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.text_input("Please enter the password to access the dashboard", type="password", on_change=password_entered, key="password")
-    return False
 
 if not check_password():
     st.stop()
