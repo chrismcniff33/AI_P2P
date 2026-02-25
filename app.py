@@ -88,6 +88,16 @@ def load_and_enrich_data():
 
     df['source_citation'] = df.apply(assign_source, axis=1)
     
+    # SAFETY CHECK: Add simulated 'criteria' if it doesn't exist in the CSV yet
+    if 'criteria' not in df.columns:
+        criteria_map = {
+            "Shampoo": ["Scalp care", "Budget", "Damaged hair", "Color protection", "Premium", "Volume"],
+            "TVs": ["Gaming", "Budget", "OLED", "Large screen", "Smart TV", "Sound quality"],
+            "Dog food": ["Puppy", "Grain-free", "Senior", "Weight management", "Sensitive stomach", "High protein"],
+            "Dietary supplements": ["Immunity", "Sleep", "Energy", "Joint support", "Gut health", "Focus"]
+        }
+        df['criteria'] = df['category'].apply(lambda x: random.choice(criteria_map.get(x, ["General"])))
+    
     known_brands = [
         "Suave", "Garnier", "Pantene", "Herbal Essences", "Aussie", "Tresemmé", "Dove", "L'Oréal", "Head & Shoulders", "Old Spice",
         "Aveeno", "OGX", "Maui Moisture", "SheaMoisture", "Kristen Ess", "Nexxus", "Paul Mitchell", "Biolage", "Monday", "Native",
@@ -134,11 +144,11 @@ if df_exploded.empty:
 # --- 4. TOP LEVEL NAVIGATION ---
 st.title("AI Path to Purchase")
 
-# Native Clickable Tabs Ribbon
+# Native Clickable Tabs Ribbon (Updated Tab 3 Title)
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ Share of Voice Overview", 
     "📊 Competitor Benchmarking", 
-    "💬 Brand Perception", 
+    "🔍 Search Criteria & Perception", 
     "🔗 Source Intelligence"
 ])
 
@@ -162,7 +172,7 @@ with tab_insight:
     
     st.subheader("Global AI Visibility Metrics", help="High-level summary of your brand's footprint across all monitored Generative AI platforms.")
     
-    # EXACT WEEKLY INDUSTRY AVERAGE LOGIC (For KPI alignment)
+    # EXACT WEEKLY INDUSTRY AVERAGE LOGIC
     wk_totals = scope_df_1.groupby('date').size().reset_index(name='total')
     wk_brands = scope_df_1.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
     wk_sov = pd.merge(wk_brands, wk_totals, on='date')
@@ -183,7 +193,7 @@ with tab_insight:
     elif ratio < 2.0: visibility = "Good"
     else: visibility = "Excellent"
     
-    # INTELLIGENT KPI CALCULATION (Linked strictly to Heatmap Index Logic)
+    # INTELLIGENT KPI CALCULATION
     hm_totals = scope_df_1.groupby(['country', 'AI platform']).size().reset_index(name='total')
     hm_brand = scope_df_1[scope_df_1['mentioned_brands'] == brand_1].groupby(['country', 'AI platform']).size().reset_index(name='brand_count')
     hm_unique = scope_df_1.groupby(['country', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique_brands')
@@ -195,7 +205,6 @@ with tab_insight:
     hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
     
-    # Filter out combinations where total volume is 0 OR the brand index is 0
     hm_valid = hm_df[(hm_df['total'] > 0) & (hm_df['index_vs_avg'] > 0)]
     
     if not hm_valid.empty:
@@ -208,10 +217,8 @@ with tab_insight:
         top_strength_str = "N/A"
         top_weakness_str = "N/A"
 
-    # Display 3 Equally Spaced Custom KPI Cards
     c1, c2, c3 = st.columns(3)
     
-    # 1. Visibility Card
     header_color = "#10b981" if visibility in ["Good", "Excellent"] else "#ef4444" if visibility == "Low" else "#f59e0b"
     c1.markdown(f"""
     <div class="custom-metric">
@@ -221,7 +228,6 @@ with tab_insight:
     </div>
     """, unsafe_allow_html=True)
     
-    # 2. Top Strength Card
     c2.markdown(f"""
     <div class="custom-metric">
         <div style="color: #64748b; font-size: 14px; font-weight: 600;">Top Strength <span title="The platform & market where your brand over-indexes the most vs competitors. Driven directly by the Heatmap.">ℹ️</span></div>
@@ -230,7 +236,6 @@ with tab_insight:
     </div>
     """, unsafe_allow_html=True)
     
-    # 3. Area for Improvement Card
     c3.markdown(f"""
     <div class="custom-metric">
         <div style="color: #64748b; font-size: 14px; font-weight: 600;">Area for Improvement <span title="The platform & market where your brand under-indexes the most vs competitors. Driven directly by the Heatmap.">ℹ️</span></div>
@@ -241,7 +246,6 @@ with tab_insight:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # --- FULL WIDTH LINE CHARTS ---
     st.subheader("Cross-Segment Share of Voice Over Time", help="Tracks weekly fluctuations in AI recommendations to catch algorithmic shifts.")
     
     # CHART 1: SoV by AI Platform
@@ -255,12 +259,10 @@ with tab_insight:
         left_df = scope_df_1[scope_df_1['country'].isin(selected_geos)]
         
     if not left_df.empty:
-        # Calculate Brand SoV per Platform
         l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
         l_brand = left_df.groupby(['date', 'AI platform', 'mentioned_brands']).size().reset_index(name='brand_count')
         l_merged = pd.merge(l_totals, l_brand[l_brand['mentioned_brands'] == brand_1], on=['date', 'AI platform'], how='left').fillna(0)
         
-        # Filter out platforms where the brand has absolute zero presence across the entire dataset
         valid_platforms = l_merged.groupby('AI platform')['brand_count'].sum()
         valid_platforms = valid_platforms[valid_platforms > 0].index
         l_merged = l_merged[l_merged['AI platform'].isin(valid_platforms)]
@@ -270,7 +272,6 @@ with tab_insight:
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
                         labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         
-        # Y-axis starting at 0, X-axis formatted to Month-Day
         fig_l.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_l, use_container_width=True, help="Trendline of brand visibility separated by LLM platform.")
@@ -290,12 +291,10 @@ with tab_insight:
         right_df = scope_df_1[scope_df_1['AI platform'].isin(selected_plats)]
         
     if not right_df.empty:
-        # Calculate Brand SoV per Country
         r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
         r_brand = right_df.groupby(['date', 'country', 'mentioned_brands']).size().reset_index(name='brand_count')
         r_merged = pd.merge(r_totals, r_brand[r_brand['mentioned_brands'] == brand_1], on=['date', 'country'], how='left').fillna(0)
         
-        # Filter out countries where the brand has absolute zero presence
         valid_countries = r_merged.groupby('country')['brand_count'].sum()
         valid_countries = valid_countries[valid_countries > 0].index
         r_merged = r_merged[r_merged['country'].isin(valid_countries)]
@@ -305,7 +304,6 @@ with tab_insight:
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
                         labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         
-        # Y-axis starting at 0, X-axis formatted to Month-Day
         fig_r.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_r, use_container_width=True, help="Trendline of brand visibility separated by Country.")
@@ -320,14 +318,12 @@ with tab_insight:
     hm_pivot = hm_df.pivot(index='country', columns='AI platform', values='index_vs_avg')
     hm_totals_pivot = hm_df.pivot(index='country', columns='AI platform', values='total')
     
-    # Strict Ordering based on rules
     y_order = ["USA", "Brazil", "India", "China", "Indonesia"]
     x_order = ["Gemini", "Chat GPT", "Amazon Rufus", "Qwen", "AI Lazzie"]
     
     hm_pivot = hm_pivot.reindex(index=y_order, columns=x_order)
     hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
     
-    # MASKING FIX: Convert any 0s or NaNs to NaN so Plotly leaves them transparent (grey)
     mask = (hm_totals_pivot > 0) & (hm_pivot > 0)
     hm_pivot_masked = hm_pivot.where(mask, np.nan)
     
@@ -352,7 +348,7 @@ with tab_insight:
         xaxis_title="", 
         yaxis_title="",
         yaxis=dict(autorange="reversed"), 
-        plot_bgcolor="#e2e8f0" # This forces NaN values to appear grey
+        plot_bgcolor="#e2e8f0" 
     )
     st.plotly_chart(fig_hm, use_container_width=True)
 
@@ -374,20 +370,18 @@ with tab_sov:
     st.markdown("---")
 
     st.subheader("Competitive Share of Voice Analysis", help="Compare your brand directly against the top 10 competitors in this category.")
-    st.markdown("#### SoV Evolution (Top 10 Brands)", help="Only countries and AI platforms where the brand selected in the main filter is present are available to view in this chart.")
+    st.markdown("#### SoV Evolution", help="Only countries and AI platforms where the brand selected in the main filter is present are available to view in this chart.")
     
-    # --- Multi-Select Filters for the Line Chart (Conditional Logic) ---
     f1_2, f2_2 = st.columns(2)
     
-    # Filter available options based ONLY on where the selected brand actually exists
+    # Conditional Filters logic
     brand_2_presence_df = scope_df_2[scope_df_2['mentioned_brands'] == brand_2]
-    avail_countries_2 = sorted(brand_2_presence_df['country'].unique())
-    avail_platforms_2 = sorted(brand_2_presence_df['AI platform'].unique())
+    avail_countries_2 = sorted(brand_2_presence_df['country'].unique()) if not brand_2_presence_df.empty else []
+    avail_platforms_2 = sorted(brand_2_presence_df['AI platform'].unique()) if not brand_2_presence_df.empty else []
     
     sel_countries_2 = f1_2.multiselect("🌍 Filter by Country", avail_countries_2, default=avail_countries_2, key="trend_country")
     sel_platforms_2 = f2_2.multiselect("🤖 Filter by AI Platform", avail_platforms_2, default=avail_platforms_2, key="trend_plat")
     
-    # Apply filters to a specific subset for the line chart
     line_scope_df = scope_df_2[
         (scope_df_2['country'].isin(sel_countries_2)) & 
         (scope_df_2['AI platform'].isin(sel_platforms_2))
@@ -408,7 +402,6 @@ with tab_sov:
                            labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
                            markers=True)
         
-        # Y-axis to zero and Dates formatted
         fig_time_comp.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_comp.update_traces(opacity=0.3)
         fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
@@ -421,16 +414,13 @@ with tab_sov:
     # --- Competitor Deep Dive Matrix ---
     st.markdown("#### Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across all available markets and AI platforms.")
     
-    # Generate list of competitors (excluding the focus brand itself)
     available_competitors = [b for b in brands_2 if b != brand_2]
     competitor_brand = st.selectbox("🤼 Select Competitor", available_competitors, index=0, key='comp_brand', help="Select a rival brand to compare side-by-side rankings.")
     
     if competitor_brand:
-        # Calculate Share of Voice Counts aggregated over all time
         cp_totals = scope_df_2.groupby(['country', 'AI platform']).size().reset_index(name='total')
         cp_brands = scope_df_2.groupby(['country', 'AI platform', 'mentioned_brands']).size().reset_index(name='count')
         
-        # Calculate absolute Rank per platform/country combination (1 is best)
         cp_brands['rank'] = cp_brands.groupby(['country', 'AI platform'])['count'].rank(method='min', ascending=False)
         
         focus_df = cp_brands[cp_brands['mentioned_brands'] == brand_2].set_index(['country', 'AI platform'])
@@ -442,7 +432,6 @@ with tab_sov:
         compare_df['focus_count'] = focus_df['count'].fillna(0)
         compare_df['comp_count'] = comp_df['count'].fillna(0)
         
-        # Filter to combinations where AT LEAST ONE of the two brands has a presence
         valid_combos = compare_df[(compare_df['focus_count'] > 0) | (compare_df['comp_count'] > 0)].index
         compare_df = compare_df.loc[valid_combos].reset_index()
         
@@ -450,14 +439,12 @@ with tab_sov:
             focus_pivot = compare_df.pivot(index='country', columns='AI platform', values='focus_rank')
             comp_pivot = compare_df.pivot(index='country', columns='AI platform', values='comp_rank')
             
-            # Align rows and columns to ensure matrices match perfectly
             all_countries = sorted(list(set(focus_pivot.index) | set(comp_pivot.index)))
             all_platforms = sorted(list(set(focus_pivot.columns) | set(comp_pivot.columns)))
             
             focus_pivot = focus_pivot.reindex(index=all_countries, columns=all_platforms)
             comp_pivot = comp_pivot.reindex(index=all_countries, columns=all_platforms)
             
-            # Create matrices for visual encoding and text overlay
             color_matrix = pd.DataFrame(np.nan, index=all_countries, columns=all_platforms)
             focus_text = pd.DataFrame("-", index=all_countries, columns=all_platforms)
             comp_text = pd.DataFrame("-", index=all_countries, columns=all_platforms)
@@ -470,17 +457,16 @@ with tab_sov:
                     if pd.notna(f_val): focus_text.loc[r, c] = f"Rank {int(f_val)}"
                     if pd.notna(c_val): comp_text.loc[r, c] = f"Rank {int(c_val)}"
                     
-                    # Logic for Highlighting the Left (Focus) Matrix
                     if pd.isna(f_val) and pd.isna(c_val):
                         color_matrix.loc[r, c] = np.nan
-                    elif pd.isna(f_val): # Focus missing, Competitor present -> WEAK
+                    elif pd.isna(f_val):
                         color_matrix.loc[r, c] = -1 
-                    elif pd.isna(c_val): # Focus present, Competitor missing -> STRONG
+                    elif pd.isna(c_val):
                         color_matrix.loc[r, c] = 1
                     else:
-                        if f_val < c_val: color_matrix.loc[r, c] = 1       # Lower rank number = Stronger (Green)
-                        elif f_val > c_val: color_matrix.loc[r, c] = -1    # Higher rank number = Weaker (Red)
-                        else: color_matrix.loc[r, c] = 0                   # Equal Rank = Tie (Yellow)
+                        if f_val < c_val: color_matrix.loc[r, c] = 1
+                        elif f_val > c_val: color_matrix.loc[r, c] = -1
+                        else: color_matrix.loc[r, c] = 0
 
             col_hm1, col_hm2 = st.columns(2)
             
@@ -495,9 +481,8 @@ with tab_sov:
                 
             with col_hm2:
                 st.markdown(f"**{competitor_brand} Ranking**")
-                # Create a neutral blue background for the competitor matrix based strictly on their rank
                 max_rank = cp_brands['rank'].max()
-                comp_color = max_rank - comp_pivot # Flips logic so Rank 1 = Darkest Blue
+                comp_color = max_rank - comp_pivot
                 fig_comp = px.imshow(comp_color, aspect="auto", color_continuous_scale="Blues")
                 fig_comp.update_traces(text=comp_text.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_comp.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
@@ -507,7 +492,7 @@ with tab_sov:
         else:
             st.info("Neither brand has a presence in the filtered data.")
 
-# === TAB 3: BRAND PERCEPTION (NLP) ===
+# === TAB 3: SEARCH CRITERIA & PERCEPTION ===
 with tab_semantic:
     # --- Tab-Specific Filters ---
     st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
@@ -523,7 +508,55 @@ with tab_semantic:
         st.stop()
         
     st.markdown("---")
+    
+    # --- NEW: SoV by Search Criteria Line Chart ---
+    st.subheader("Share of Voice by Search Criteria", help="Analyze how your brand's visibility fluctuates based on specific shopper search intents (e.g. Budget vs Premium).")
+    
+    f1_3, f2_3, f3_3 = st.columns(3)
+    
+    brand_3_presence_df = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
+    avail_countries_3 = sorted(brand_3_presence_df['country'].unique()) if not brand_3_presence_df.empty else []
+    avail_platforms_3 = sorted(brand_3_presence_df['AI platform'].unique()) if not brand_3_presence_df.empty else []
+    
+    # We want criteria for the whole category so users can see how the brand performs against others in that specific criteria slice
+    avail_criteria_3 = sorted(scope_df_3['criteria'].astype(str).unique())
+    
+    sel_countries_3 = f1_3.multiselect("🌍 Filter by Country", avail_countries_3, default=avail_countries_3, key="crit_country")
+    sel_platforms_3 = f2_3.multiselect("🤖 Filter by AI Platform", avail_platforms_3, default=avail_platforms_3, key="crit_plat")
+    sel_criteria_3 = f3_3.multiselect("🔎 Filter by Criteria", avail_criteria_3, default=avail_criteria_3, key="crit_crit")
+    
+    # Apply filters
+    crit_scope_df = scope_df_3[
+        (scope_df_3['country'].isin(sel_countries_3)) & 
+        (scope_df_3['AI platform'].isin(sel_platforms_3)) &
+        (scope_df_3['criteria'].astype(str).isin(sel_criteria_3))
+    ]
+    
+    daily_counts_3 = crit_scope_df.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
+    
+    if not daily_counts_3.empty:
+        daily_totals_3 = daily_counts_3.groupby('date')['count'].transform('sum')
+        daily_counts_3['sov_pct'] = (daily_counts_3['count'] / daily_totals_3) * 100
+        
+        top_10_crit = crit_scope_df['mentioned_brands'].value_counts().head(10).index.tolist()
+        if brand_3 not in top_10_crit: top_10_crit.append(brand_3) 
+        
+        filtered_daily_3 = daily_counts_3[daily_counts_3['mentioned_brands'].isin(top_10_crit)]
+        
+        fig_time_crit = px.line(filtered_daily_3, x='date', y='sov_pct', color='mentioned_brands',
+                           labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
+                           markers=True)
+        
+        fig_time_crit.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
+        fig_time_crit.update_traces(opacity=0.3)
+        fig_time_crit.update_traces(selector={'name':brand_3}, opacity=1, line={'width': 4})
+        st.plotly_chart(fig_time_crit, use_container_width=True, help="Trendline of Share of Voice specifically for the selected search criteria.")
+    else:
+        st.info("No timeline data available for these filter selections.")
+        
+    st.markdown("---")
 
+    # --- EXISTING: NLP Descriptor Section ---
     st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact phrasing AI assistants use when recommending this brand.")
     
     brand_responses = df[
