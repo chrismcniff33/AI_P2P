@@ -476,15 +476,18 @@ with tab_semantic:
         
     st.markdown("---")
     
-    # --- NEW: Criteria Competitor Deep Dive Matrix ---
-    st.markdown("#### Criteria Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across markets and platforms, specifically for the search criteria selected above.")
+    # --- DECOUPLED: Criteria Competitor Deep Dive Matrix ---
+    st.markdown("#### Criteria Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across markets and platforms, specifically for the search criteria selected.")
     
     available_competitors_3 = [b for b in brands_3 if b != brand_3]
-    competitor_brand_3 = st.selectbox("🤼 Select Competitor", available_competitors_3, index=0, key='comp_brand_3')
     
-    if competitor_brand_3:
-        # Filter the matrix data strictly by the selected criteria to reflect how brands perform in that specific narrative
-        matrix_df_3 = scope_df_3[scope_df_3['criteria'].astype(str).isin(sel_criteria_3)]
+    col_comp_3, col_crit_3 = st.columns(2)
+    competitor_brand_3 = col_comp_3.selectbox("🤼 Select Competitor", available_competitors_3, index=0, key='comp_brand_3')
+    deep_dive_criteria = col_crit_3.multiselect("🔎 Filter Matrices by Criteria", avail_criteria_3, default=avail_criteria_3, key="deep_dive_crit", help="Select criteria exclusively to adjust these matrices.")
+    
+    if competitor_brand_3 and deep_dive_criteria:
+        # Filter the matrix data strictly by the independently selected criteria
+        matrix_df_3 = scope_df_3[scope_df_3['criteria'].astype(str).isin(deep_dive_criteria)]
         
         cp_totals_3 = matrix_df_3.groupby(['country', 'AI platform']).size().reset_index(name='total')
         cp_brands_3 = matrix_df_3.groupby(['country', 'AI platform', 'mentioned_brands']).size().reset_index(name='count')
@@ -539,15 +542,15 @@ with tab_semantic:
             col_hm1_3, col_hm2_3 = st.columns(2)
             
             with col_hm1_3:
-                st.markdown(f"**{brand_3} Ranking (Filtered by Criteria)**")
+                st.markdown(f"**{brand_3} Ranking (Filtered)**")
                 fig_focus_3 = px.imshow(color_matrix_3, aspect="auto", color_continuous_scale=['#ef4444', '#f59e0b', '#10b981'], zmin=-1, zmax=1)
                 fig_focus_3.update_traces(text=focus_text_3.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_focus_3.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_focus_3, use_container_width=True, key="tab3_hm_focus")
                 
             with col_hm2_3:
-                st.markdown(f"**{competitor_brand_3} Ranking (Filtered by Criteria)**")
-                max_rank_3 = cp_brands_3['rank'].max()
+                st.markdown(f"**{competitor_brand_3} Ranking (Filtered)**")
+                max_rank_3 = cp_brands_3['rank'].max() if not cp_brands_3.empty else 1
                 comp_color_3 = max_rank_3 - comp_pivot_3
                 fig_comp_3 = px.imshow(comp_color_3, aspect="auto", color_continuous_scale="Blues")
                 fig_comp_3.update_traces(text=comp_text_3.values, texttemplate="%{text}", hoverinfo="skip")
@@ -564,6 +567,7 @@ with tab_semantic:
     st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact descriptors & attributes AI assistants use when recommending this brand.")
     
     brand_3_data = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
+    
     extracted_features = [attr for sublist in brand_3_data['extracted_attributes'] if isinstance(sublist, list) for attr in sublist]
 
     if extracted_features:
