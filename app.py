@@ -38,6 +38,16 @@ st.markdown("""
             background-color: #4f46e5 !important; 
             color: white !important;
         }
+        
+        /* Custom Call to Action Box */
+        .cta-box {
+            background-color: #fffbeb;
+            border-left: 5px solid #f59e0b;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .cta-box h4 { margin-top: 0px; color: #b45309; font-size: 18px;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -176,7 +186,7 @@ tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ Share of Voice Overview", 
     "📊 Competitor Benchmarking", 
     "🔍 Search Criteria & Perception", 
-    "🔗 Source Intelligence"
+    "🔗 AI Platform Sources"
 ])
 
 # === TAB 1: SHARE OF VOICE OVERVIEW ===
@@ -480,18 +490,14 @@ with tab_semantic:
     st.markdown("#### Criteria Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across markets and platforms, specifically for the search criteria selected.")
     
     available_competitors_3 = [b for b in brands_3 if b != brand_3]
-    
     col_comp_3, col_crit_3 = st.columns(2)
     competitor_brand_3 = col_comp_3.selectbox("🤼 Select Competitor", available_competitors_3, index=0, key='comp_brand_3')
     deep_dive_criteria = col_crit_3.multiselect("🔎 Filter Matrices by Criteria", avail_criteria_3, default=avail_criteria_3, key="deep_dive_crit", help="Select criteria exclusively to adjust these matrices.")
     
     if competitor_brand_3 and deep_dive_criteria:
-        # Filter the matrix data strictly by the independently selected criteria
         matrix_df_3 = scope_df_3[scope_df_3['criteria'].astype(str).isin(deep_dive_criteria)]
-        
         cp_totals_3 = matrix_df_3.groupby(['country', 'AI platform']).size().reset_index(name='total')
         cp_brands_3 = matrix_df_3.groupby(['country', 'AI platform', 'mentioned_brands']).size().reset_index(name='count')
-        
         cp_brands_3['rank'] = cp_brands_3.groupby(['country', 'AI platform'])['count'].rank(method='min', ascending=False)
         
         focus_df_3 = cp_brands_3[cp_brands_3['mentioned_brands'] == brand_3].set_index(['country', 'AI platform'])
@@ -503,8 +509,7 @@ with tab_semantic:
         compare_df_3['focus_count'] = focus_df_3['count'].fillna(0)
         compare_df_3['comp_count'] = comp_df_3['count'].fillna(0)
         
-        valid_combos_3 = compare_df_3[(compare_df_3['focus_count'] > 0) | (compare_df_3['comp_count'] > 0)].index
-        compare_df_3 = compare_df_3.loc[valid_combos_3].reset_index()
+        compare_df_3 = compare_df_3.loc[compare_df_3[(compare_df_3['focus_count'] > 0) | (compare_df_3['comp_count'] > 0)].index].reset_index()
         
         if not compare_df_3.empty:
             focus_pivot_3 = compare_df_3.pivot(index='country', columns='AI platform', values='focus_rank')
@@ -512,47 +517,32 @@ with tab_semantic:
             
             all_countries_3 = sorted(list(set(focus_pivot_3.index) | set(comp_pivot_3.index)))
             all_platforms_3 = sorted(list(set(focus_pivot_3.columns) | set(comp_pivot_3.columns)))
-            
             focus_pivot_3 = focus_pivot_3.reindex(index=all_countries_3, columns=all_platforms_3)
             comp_pivot_3 = comp_pivot_3.reindex(index=all_countries_3, columns=all_platforms_3)
             
-            color_matrix_3 = pd.DataFrame(np.nan, index=all_countries_3, columns=all_platforms_3)
-            focus_text_3 = pd.DataFrame("-", index=all_countries_3, columns=all_platforms_3)
-            comp_text_3 = pd.DataFrame("-", index=all_countries_3, columns=all_platforms_3)
+            color_matrix_3, focus_text_3, comp_text_3 = pd.DataFrame(np.nan, index=all_countries_3, columns=all_platforms_3), pd.DataFrame("-", index=all_countries_3, columns=all_platforms_3), pd.DataFrame("-", index=all_countries_3, columns=all_platforms_3)
             
             for c in all_platforms_3:
                 for r in all_countries_3:
-                    f_val = focus_pivot_3.loc[r, c]
-                    c_val = comp_pivot_3.loc[r, c]
-                    
+                    f_val, c_val = focus_pivot_3.loc[r, c], comp_pivot_3.loc[r, c]
                     if pd.notna(f_val): focus_text_3.loc[r, c] = f"Rank {int(f_val)}"
                     if pd.notna(c_val): comp_text_3.loc[r, c] = f"Rank {int(c_val)}"
                     
-                    if pd.isna(f_val) and pd.isna(c_val):
-                        color_matrix_3.loc[r, c] = np.nan
-                    elif pd.isna(f_val):
-                        color_matrix_3.loc[r, c] = -1 
-                    elif pd.isna(c_val):
-                        color_matrix_3.loc[r, c] = 1
-                    else:
-                        if f_val < c_val: color_matrix_3.loc[r, c] = 1
-                        elif f_val > c_val: color_matrix_3.loc[r, c] = -1
-                        else: color_matrix_3.loc[r, c] = 0
+                    if pd.isna(f_val) and pd.isna(c_val): color_matrix_3.loc[r, c] = np.nan
+                    elif pd.isna(f_val): color_matrix_3.loc[r, c] = -1 
+                    elif pd.isna(c_val): color_matrix_3.loc[r, c] = 1
+                    else: color_matrix_3.loc[r, c] = 1 if f_val < c_val else -1 if f_val > c_val else 0
 
             col_hm1_3, col_hm2_3 = st.columns(2)
-            
             with col_hm1_3:
-                st.markdown(f"**{brand_3} Ranking (Filtered)**")
+                st.markdown(f"**{brand_3} Ranking (Filtered by Criteria)**")
                 fig_focus_3 = px.imshow(color_matrix_3, aspect="auto", color_continuous_scale=['#ef4444', '#f59e0b', '#10b981'], zmin=-1, zmax=1)
                 fig_focus_3.update_traces(text=focus_text_3.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_focus_3.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_focus_3, use_container_width=True, key="tab3_hm_focus")
-                
             with col_hm2_3:
-                st.markdown(f"**{competitor_brand_3} Ranking (Filtered)**")
-                max_rank_3 = cp_brands_3['rank'].max() if not cp_brands_3.empty else 1
-                comp_color_3 = max_rank_3 - comp_pivot_3
-                fig_comp_3 = px.imshow(comp_color_3, aspect="auto", color_continuous_scale="Blues")
+                st.markdown(f"**{competitor_brand_3} Ranking (Filtered by Criteria)**")
+                fig_comp_3 = px.imshow(cp_brands_3['rank'].max() - comp_pivot_3, aspect="auto", color_continuous_scale="Blues")
                 fig_comp_3.update_traces(text=comp_text_3.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_comp_3.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_comp_3, use_container_width=True, key="tab3_hm_comp")
@@ -567,7 +557,6 @@ with tab_semantic:
     st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact descriptors & attributes AI assistants use when recommending this brand.")
     
     brand_3_data = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
-    
     extracted_features = [attr for sublist in brand_3_data['extracted_attributes'] if isinstance(sublist, list) for attr in sublist]
 
     if extracted_features:
@@ -657,7 +646,7 @@ with tab_semantic:
     else:
         st.warning("Not enough highly-relevant product attribute data to generate semantic analysis for this brand.")
 
-# === TAB 4: SOURCE INTELLIGENCE ===
+# === TAB 4: AI PLATFORM SOURCES ===
 with tab_sources:
     st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
     c1_4, c2_4 = st.columns(2)
@@ -673,33 +662,85 @@ with tab_sources:
         
     st.markdown("---")
 
-    st.subheader("Where is the LLM getting this info?", help="Traces the AI recommendations back to their origin authoritative sources across the web.")
-    st.info("Based on citation patterns and known training data correlations.")
+    st.subheader("AI Platform Information Sourcing", help="Analyze which websites the AI platforms are citing to build their brand recommendations.")
     
-    brand_source_df = scope_df_4[scope_df_4['mentioned_brands'] == brand_4]
+    # --- Source Specific Filters ---
+    f1_4, f2_4 = st.columns(2)
+    brand_4_presence_df = scope_df_4[scope_df_4['mentioned_brands'] == brand_4]
+    avail_countries_4 = sorted(brand_4_presence_df['country'].unique()) if not brand_4_presence_df.empty else []
+    avail_platforms_4 = sorted(brand_4_presence_df['AI platform'].unique()) if not brand_4_presence_df.empty else []
     
-    if not brand_source_df.empty:
-        source_counts = brand_source_df['source_citation'].value_counts().reset_index()
-        source_counts.columns = ['Source', 'Mentions']
-        
-        c1, c2 = st.columns([2, 1])
+    sel_countries_4 = f1_4.multiselect("🌍 Filter by Country", avail_countries_4, default=avail_countries_4, key="source_country")
+    sel_platforms_4 = f2_4.multiselect("🤖 Filter by AI Platform", avail_platforms_4, default=avail_platforms_4, key="source_plat")
+    
+    # Apply filters to scope
+    source_filtered_df = scope_df_4[
+        (scope_df_4['country'].isin(sel_countries_4)) & 
+        (scope_df_4['AI platform'].isin(sel_platforms_4))
+    ]
+    
+    brand_source_filtered_df = source_filtered_df[source_filtered_df['mentioned_brands'] == brand_4]
+    
+    if not brand_source_filtered_df.empty:
+        c1, c2 = st.columns([1, 1])
         
         with c1:
-            fig_tree = px.treemap(source_counts, path=['Source'], values='Mentions', color='Mentions', color_continuous_scale='RdBu')
-            st.plotly_chart(fig_tree, use_container_width=True, key="tab4_tree_source")
+            st.markdown("#### Market Source Distribution")
+            st.caption("Overall citation share across all brands in the selected view.")
+            cat_source_counts = source_filtered_df['source_citation'].value_counts().reset_index()
+            cat_source_counts.columns = ['Source', 'Mentions']
+            fig_pie = px.pie(cat_source_counts, values='Mentions', names='Source', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+            fig_pie.update_layout(showlegend=False)
+            st.plotly_chart(fig_pie, use_container_width=True, key="tab4_pie")
             
         with c2:
-            st.markdown("#### Actionable Targets")
-            cat_sources = scope_df_4['source_citation'].value_counts(normalize=True)
-            brand_sources = brand_source_df['source_citation'].value_counts(normalize=True)
+            st.markdown(f"#### {brand_4} Index vs Category")
+            st.caption("How heavily your brand relies on these sources compared to the market average.")
             
-            gap = (cat_sources - brand_sources).dropna().sort_values(ascending=False).head(3)
+            cat_sources_pct = source_filtered_df['source_citation'].value_counts(normalize=True).reset_index()
+            cat_sources_pct.columns = ['Source', 'Category_Pct']
             
-            st.markdown("<p style='font-size: 14px; color: #64748b;'>Below are the sources your competitors are leveraging more effectively than you:</p>", unsafe_allow_html=True)
-            if not gap.empty:
-                for source, diff in gap.items():
-                    st.warning(f"📉 **{source}**: Under-represented by {(diff*100):.1f}% vs category avg.")
-            else:
-                st.success("Your source distribution matches or exceeds the category average!")
+            brand_sources_pct = brand_source_filtered_df['source_citation'].value_counts(normalize=True).reset_index()
+            brand_sources_pct.columns = ['Source', 'Brand_Pct']
+            
+            comp_source_df = pd.merge(cat_sources_pct, brand_sources_pct, on='Source', how='outer').fillna(0)
+            comp_source_df['Category_Pct'] = comp_source_df['Category_Pct'] * 100
+            comp_source_df['Brand_Pct'] = comp_source_df['Brand_Pct'] * 100
+            
+            # Melt for grouped bar chart
+            melted_source = pd.melt(comp_source_df, id_vars=['Source'], value_vars=['Category_Pct', 'Brand_Pct'], var_name='Type', value_name='Percentage')
+            melted_source['Type'] = melted_source['Type'].replace({'Category_Pct': 'Category Average', 'Brand_Pct': f'{brand_4} Actual'})
+            
+            fig_bar = px.bar(melted_source, x='Percentage', y='Source', color='Type', barmode='group', orientation='h', color_discrete_map={'Category Average': '#cbd5e1', f'{brand_4} Actual': '#4f46e5'})
+            fig_bar.update_layout(yaxis={'categoryorder':'total ascending'}, legend_title_text='')
+            st.plotly_chart(fig_bar, use_container_width=True, key="tab4_bar")
+            
+        # --- STRATEGIC CALL TO ACTION ---
+        st.markdown("---")
+        
+        # Calculate the biggest indexing gap (Where Brand % is lower than Category %)
+        comp_source_df['Gap'] = comp_source_df['Category_Pct'] - comp_source_df['Brand_Pct']
+        biggest_gap = comp_source_df.sort_values(by='Gap', ascending=False).iloc[0]
+        
+        if biggest_gap['Gap'] > 0:
+            target_source = biggest_gap['Source']
+            gap_amount = biggest_gap['Gap']
+            
+            st.markdown(f"""
+            <div class="cta-box">
+                <h4>🎯 Strategic Action Plan: Optimizing Source Authority</h4>
+                <p>Based on your current filter selection, the AI algorithms are heavily indexing <b>{target_source}</b> to build their recommendations.</p>
+                <p>Currently, <b>{brand_4}</b> is under-indexing on this critical source by <b>{gap_amount:.1f}%</b> compared to the category average. This means your competitors have a stronger footprint here, which the AI is detecting and rewarding.</p>
+                <b>Recommended Action:</b>
+                <ul>
+                    <li>Allocate digital marketing resources to increase native content, PR seeding, or user-generated reviews specifically on <b>{target_source}</b>.</li>
+                    <li>Ensure existing content on this platform clearly articulates the "Top Descriptors" identified in the Search Criteria tab to feed the AI the exact language it prefers.</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.success(f"🌟 Great job! {brand_4} is currently over-indexing or perfectly matching the category average across all primary data sources in this view.")
+
     else:
-        st.warning("No source data available for this brand.")
+        st.warning("No source data available for this brand based on current filter selections.")
