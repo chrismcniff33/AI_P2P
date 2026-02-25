@@ -134,10 +134,10 @@ if df_exploded.empty:
 # --- 4. TOP LEVEL NAVIGATION ---
 st.title("AI Path to Purchase")
 
-# Native Clickable Tabs Ribbon
+# Native Clickable Tabs Ribbon (Updated Tab 2 Title)
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ Share of Voice Overview", 
-    "📊 Share of Voice Trends", 
+    "📊 Competitor Benchmarking", 
     "💬 Brand Perception", 
     "🔗 Source Intelligence"
 ])
@@ -356,7 +356,7 @@ with tab_insight:
     )
     st.plotly_chart(fig_hm, use_container_width=True)
 
-# === TAB 2: SHARE OF VOICE (COMPETITIVE TRENDS) ===
+# === TAB 2: COMPETITOR BENCHMARKING ===
 with tab_sov:
     # --- Tab-Specific Filters ---
     st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
@@ -376,13 +376,27 @@ with tab_sov:
     st.subheader("Competitive Share of Voice Analysis", help="Compare your brand directly against the top 10 competitors in this category.")
     st.markdown("#### 1. SoV Evolution (Top 10 Brands)")
     
-    daily_counts = scope_df_2.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
+    # --- New Multi-Select Filters for the Line Chart ---
+    f1_2, f2_2 = st.columns(2)
+    avail_countries_2 = sorted(scope_df_2['country'].unique())
+    avail_platforms_2 = sorted(scope_df_2['AI platform'].unique())
+    
+    sel_countries_2 = f1_2.multiselect("🌍 Filter by Country", avail_countries_2, default=avail_countries_2, key="trend_country")
+    sel_platforms_2 = f2_2.multiselect("🤖 Filter by AI Platform", avail_platforms_2, default=avail_platforms_2, key="trend_plat")
+    
+    # Apply filters to a specific subset for the line chart
+    line_scope_df = scope_df_2[
+        (scope_df_2['country'].isin(sel_countries_2)) & 
+        (scope_df_2['AI platform'].isin(sel_platforms_2))
+    ]
+    
+    daily_counts = line_scope_df.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
     
     if not daily_counts.empty:
         daily_totals = daily_counts.groupby('date')['count'].transform('sum')
         daily_counts['sov_pct'] = (daily_counts['count'] / daily_totals) * 100
         
-        top_10 = scope_df_2['mentioned_brands'].value_counts().head(10).index.tolist()
+        top_10 = line_scope_df['mentioned_brands'].value_counts().head(10).index.tolist()
         if brand_2 not in top_10: top_10.append(brand_2) 
         
         filtered_daily = daily_counts[daily_counts['mentioned_brands'].isin(top_10)]
@@ -391,26 +405,26 @@ with tab_sov:
                            labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
                            markers=True)
         
-        # FIX: Y-axis to zero and Dates formatted
+        # Y-axis to zero and Dates formatted
         fig_time_comp.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_comp.update_traces(opacity=0.3)
         fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
-        st.plotly_chart(fig_time_comp, use_container_width=True, help="Your selected brand is highlighted with a thicker, solid line.")
+        st.plotly_chart(fig_time_comp, use_container_width=True, help="Your selected brand is highlighted with a thicker, solid line. Data reflects the dropdown filters directly above.")
     else:
-        st.info("No timeline data available.")
+        st.info("No timeline data available for these filter selections.")
     
     st.markdown("#### 2. Platform Dominance (Top Brands)")
     plat_counts = scope_df_2.groupby(['AI platform', 'mentioned_brands']).size().reset_index(name='count')
     
     if not plat_counts.empty:
-        if 'top_10' not in locals():
+        if 'top_10' not in locals() or len(top_10) == 0:
             top_10 = scope_df_2['mentioned_brands'].value_counts().head(10).index.tolist()
             
         plat_filtered = plat_counts[plat_counts['mentioned_brands'].isin(top_10)]
         
         fig_plat = px.bar(plat_filtered, x='AI platform', y='count', color='mentioned_brands',
                           barmode='stack', labels={'count': 'Mentions', 'AI platform': ''})
-        st.plotly_chart(fig_plat, use_container_width=True, help="Total aggregated mentions per platform broken down by top competitors.")
+        st.plotly_chart(fig_plat, use_container_width=True, help="Total aggregated mentions per platform broken down by top competitors across the whole category.")
     else:
         st.info("No platform data available.")
 
