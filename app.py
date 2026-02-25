@@ -215,10 +215,11 @@ if selected_tab == "👁️ Share of Voice Overview":
     hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
     
-    # Filter to only places where category has a presence to avoid flagging 'ghost' areas
-    hm_valid = hm_df[hm_df['total'] > 0]
+    # Filter out combinations where total volume is 0 OR the brand index is 0
+    # This prevents recommending a "0 index" as an area for improvement when it actually means no presence.
+    hm_valid = hm_df[(hm_df['total'] > 0) & (hm_df['index_vs_avg'] > 0)]
     
-    if not hm_valid.empty and hm_valid['brand_count'].sum() > 0:
+    if not hm_valid.empty:
         idx_max = hm_valid['index_vs_avg'].idxmax()
         top_strength_str = f"{hm_valid.loc[idx_max, 'AI platform']} in {hm_valid.loc[idx_max, 'country']} 🏆"
         
@@ -361,14 +362,15 @@ if selected_tab == "👁️ Share of Voice Overview":
     hm_pivot = hm_pivot.reindex(index=y_order, columns=x_order)
     hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
     
-    # Grey out invalid/zero data combinations
-    hm_pivot_masked = hm_pivot.where((hm_totals_pivot.notna()) & (hm_totals_pivot > 0), np.nan)
+    # MASKING FIX: Convert any 0s or NaNs to NaN so Plotly leaves them transparent (grey)
+    mask = (hm_totals_pivot > 0) & (hm_pivot > 0)
+    hm_pivot_masked = hm_pivot.where(mask, np.nan)
     
     text_array = []
     for r in hm_pivot_masked.values:
         row = []
         for v in r:
-            if pd.isna(v) or v == 0:
+            if pd.isna(v):
                 row.append("-")
             else:
                 row.append(f"{v:.0f}")
@@ -385,7 +387,7 @@ if selected_tab == "👁️ Share of Voice Overview":
         xaxis_title="", 
         yaxis_title="",
         yaxis=dict(autorange="reversed"), 
-        plot_bgcolor="#e2e8f0" 
+        plot_bgcolor="#e2e8f0" # This forces NaN values to appear grey
     )
     st.plotly_chart(fig_hm, use_container_width=True)
 
