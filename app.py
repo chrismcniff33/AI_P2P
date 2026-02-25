@@ -26,14 +26,38 @@ st.markdown("""
             height: 100%;
         }
         
-        /* Styling the Radio button to act as a Navigation Ribbon */
+        /* Style the Radio buttons to look exactly like the old st.tabs */
         div.row-widget.stRadio > div {
+            display: flex;
             flex-direction: row;
-            gap: 15px;
-            background-color: #f1f5f9;
-            padding: 10px 15px;
-            border-radius: 8px;
             border-bottom: 2px solid #e5e7eb;
+            gap: 5px;
+            padding-bottom: 0px;
+        }
+        div.row-widget.stRadio > div > label {
+            padding: 12px 20px;
+            background-color: #f1f5f9;
+            border-radius: 5px 5px 0px 0px;
+            margin-bottom: 0px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        /* Hide the actual radio circle */
+        div.row-widget.stRadio > div > label > div:first-child {
+            display: none; 
+        }
+        /* Style the text */
+        div.row-widget.stRadio > div > label > div:last-child {
+            font-weight: 600;
+            color: #475569;
+            margin-left: 0px;
+        }
+        /* Active Tab Styling */
+        div.row-widget.stRadio > div > label[data-checked="true"] {
+            background-color: #4f46e5;
+        }
+        div.row-widget.stRadio > div > label[data-checked="true"] > div:last-child {
+            color: white;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -48,17 +72,11 @@ def check_password():
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.text_input("Please enter the company password to access this tool:", type="password", on_change=password_entered, key="password")
+        st.text_input("Please enter the company password to access this tool:", type="password", on_change=password_entered, key="password")
         return False
     elif not st.session_state["password_correct"]:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.text_input("Please enter the company password to access this tool:", type="password", on_change=password_entered, key="password")
-            st.error("😕 Password incorrect")
+        st.text_input("Please enter the company password to access this tool:", type="password", on_change=password_entered, key="password")
+        st.error("😕 Password incorrect")
         return False
     else:
         return True
@@ -185,7 +203,7 @@ if selected_tab == "👁️ Share of Voice Overview":
     elif ratio < 2.0: visibility = "Good"
     else: visibility = "Excellent"
     
-    # INTELLIGENT KPI CALCULATION (Linked to Heatmap Index Logic)
+    # INTELLIGENT KPI CALCULATION (Linked strictly to Heatmap Index Logic)
     hm_totals = scope_df.groupby(['country', 'AI platform']).size().reset_index(name='total')
     hm_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby(['country', 'AI platform']).size().reset_index(name='brand_count')
     hm_unique = scope_df.groupby(['country', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique_brands')
@@ -197,7 +215,7 @@ if selected_tab == "👁️ Share of Voice Overview":
     hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
     
-    # Filter to only places where category is active
+    # Filter to only places where category has a presence to avoid flagging 'ghost' areas
     hm_valid = hm_df[hm_df['total'] > 0]
     
     if not hm_valid.empty and hm_valid['brand_count'].sum() > 0:
@@ -213,20 +231,20 @@ if selected_tab == "👁️ Share of Voice Overview":
     # Display 3 Equally Spaced Custom KPI Cards
     c1, c2, c3 = st.columns(3)
     
-    # 1. Visibility Card (Color coded footer)
-    footer_color = "#10b981" if visibility in ["Good", "Excellent"] else "#ef4444" if visibility == "Low" else "#f59e0b"
+    # 1. Visibility Card
+    header_color = "#10b981" if visibility in ["Good", "Excellent"] else "#ef4444" if visibility == "Low" else "#f59e0b"
     c1.markdown(f"""
     <div class="custom-metric">
         <div style="color: #64748b; font-size: 14px; font-weight: 600;">Visibility vs Industry <span title="Your brand's overall Share of Voice compared to the average brand in this category">ℹ️</span></div>
-        <div style="color: #4F46E5; font-size: 26px; font-weight: 700; margin-top: 5px;">{global_sov:.1f}%</div>
-        <div style="color: {footer_color}; font-size: 14px; font-weight: 600; margin-top: 5px;">{visibility} (Avg: {ind_avg_sov:.1f}%)</div>
+        <div style="color: {header_color}; font-size: 26px; font-weight: 700; margin-top: 5px;">{visibility}: {global_sov:.1f}%</div>
+        <div style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-top: 5px;">Industry Avg: {ind_avg_sov:.1f}%</div>
     </div>
     """, unsafe_allow_html=True)
     
     # 2. Top Strength Card
     c2.markdown(f"""
     <div class="custom-metric">
-        <div style="color: #64748b; font-size: 14px; font-weight: 600;">Top Strength <span title="The platform & market where your brand over-indexes the most vs competitors">ℹ️</span></div>
+        <div style="color: #64748b; font-size: 14px; font-weight: 600;">Top Strength <span title="The platform & market where your brand over-indexes the most vs competitors. Driven directly by the Heatmap.">ℹ️</span></div>
         <div style="color: #1e293b; font-size: 20px; font-weight: 700; margin-top: 10px; line-height: 1.2;">{top_strength_str}</div>
         <div style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-top: 5px;">Based on Index vs Avg</div>
     </div>
@@ -235,7 +253,7 @@ if selected_tab == "👁️ Share of Voice Overview":
     # 3. Area for Improvement Card
     c3.markdown(f"""
     <div class="custom-metric">
-        <div style="color: #64748b; font-size: 14px; font-weight: 600;">Area for Improvement <span title="The platform & market where your brand under-indexes the most vs competitors">ℹ️</span></div>
+        <div style="color: #64748b; font-size: 14px; font-weight: 600;">Area for Improvement <span title="The platform & market where your brand under-indexes the most vs competitors. Driven directly by the Heatmap.">ℹ️</span></div>
         <div style="color: #1e293b; font-size: 20px; font-weight: 700; margin-top: 10px; line-height: 1.2;">{top_weakness_str}</div>
         <div style="color: #94a3b8; font-size: 13px; font-weight: 500; margin-top: 5px;">Based on Index vs Avg</div>
     </div>
@@ -260,20 +278,25 @@ if selected_tab == "👁️ Share of Voice Overview":
         l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
         l_brand = left_df[left_df['mentioned_brands'] == target_brand].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
         l_merged = pd.merge(l_totals, l_brand, on=['date', 'AI platform'], how='left').fillna(0)
+        
+        # Filter out platforms where the brand has absolute zero presence across ALL dates
+        valid_platforms = l_merged.groupby('AI platform')['brand_count'].sum()
+        valid_platforms = valid_platforms[valid_platforms > 0].index
+        l_merged = l_merged[l_merged['AI platform'].isin(valid_platforms)]
+        
         l_merged['sov'] = (l_merged['brand_count'] / l_merged['total']) * 100
         
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
                         labels={'sov': 'Share of Voice (%)'}, height=400)
         
-        # Moving Average Calculation for Industry Average
+        # True Weekly Industry Average
         ind_avg_df_l = left_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
-        ind_avg_df_l['daily_avg'] = 100.0 / ind_avg_df_l['unique'].replace(0, 1)
-        ind_avg_df_l['ind_avg_ma'] = ind_avg_df_l['daily_avg'].rolling(window=3, min_periods=1).mean()
+        ind_avg_df_l['ind_avg'] = 100.0 / ind_avg_df_l['unique'].replace(0, 1)
         
         fig_l.add_trace(go.Scatter(
-            x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg_ma'],
+            x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg'],
             mode='lines', line=dict(dash='dash', color='gray', width=2),
-            name='Ind Moving Avg', hovertemplate='Moving Avg: %{y:.1f}%<extra></extra>'
+            name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
         ))
         
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
@@ -297,20 +320,25 @@ if selected_tab == "👁️ Share of Voice Overview":
         r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
         r_brand = right_df[right_df['mentioned_brands'] == target_brand].groupby(['date', 'country']).size().reset_index(name='brand_count')
         r_merged = pd.merge(r_totals, r_brand, on=['date', 'country'], how='left').fillna(0)
+        
+        # Filter out countries where the brand has absolute zero presence across ALL dates
+        valid_countries = r_merged.groupby('country')['brand_count'].sum()
+        valid_countries = valid_countries[valid_countries > 0].index
+        r_merged = r_merged[r_merged['country'].isin(valid_countries)]
+        
         r_merged['sov'] = (r_merged['brand_count'] / r_merged['total']) * 100
         
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
                         labels={'sov': 'Share of Voice (%)'}, height=400)
         
-        # Moving Average Calculation
+        # True Weekly Industry Average
         ind_avg_df_r = right_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
-        ind_avg_df_r['daily_avg'] = 100.0 / ind_avg_df_r['unique'].replace(0, 1)
-        ind_avg_df_r['ind_avg_ma'] = ind_avg_df_r['daily_avg'].rolling(window=3, min_periods=1).mean()
+        ind_avg_df_r['ind_avg'] = 100.0 / ind_avg_df_r['unique'].replace(0, 1)
         
         fig_r.add_trace(go.Scatter(
-            x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg_ma'],
+            x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg'],
             mode='lines', line=dict(dash='dash', color='gray', width=2),
-            name='Ind Moving Avg', hovertemplate='Moving Avg: %{y:.1f}%<extra></extra>'
+            name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
         ))
         
         fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
@@ -334,7 +362,7 @@ if selected_tab == "👁️ Share of Voice Overview":
     hm_totals_pivot = hm_totals_pivot.reindex(index=y_order, columns=x_order)
     
     # Grey out invalid/zero data combinations
-    hm_pivot_masked = hm_pivot.where((hm_totals_pivot.notna()) & (hm_pivot > 0), np.nan)
+    hm_pivot_masked = hm_pivot.where((hm_totals_pivot.notna()) & (hm_totals_pivot > 0), np.nan)
     
     text_array = []
     for r in hm_pivot_masked.values:
