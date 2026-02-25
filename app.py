@@ -533,79 +533,80 @@ with tab_semantic:
     st.markdown("---")
 
     # --- ADVANCED NLP DESCRIPTOR SECTION ---
-    st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact phrasing AI assistants use when recommending this brand.")
+    st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact descriptors & attributes AI assistants use when recommending this brand.")
     
-    # 1. Aggressive Noise Reduction List
-    stop_words_extended = set([
-        'the', 'and', 'is', 'to', 'in', 'of', 'for', 'with', 'a', 'an', 'it', 'this', 'that', 'brand', 'product', 
-        'recommend', 'options', 'choice', 'popular', 'user', 'users', 'reviews', 'are', 'as', 'on', 'or', 'but', 
-        'if', 'because', 'as', 'until', 'while', 'at', 'by', 'about', 'against', 'between', 'into', 'through', 
-        'during', 'before', 'after', 'above', 'below', 'from', 'up', 'down', 'out', 'off', 'over', 'under', 
-        'again', 'further', 'then', 'once', 'here', 'there', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 
-        'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 
-        'can', 'will', 'just', 'don', 'should', 'now', 'like', 'get', 'one', 'also', 'really', 'much', 'well', 
-        'even', 'would', 'make', 'has', 'have', 'been', 'which', 'who', 'what', 'why', 'how', 'when', 'where',
-        'its', 'their', 'they', 'we', 'you', 'your', 'i', 'me', 'my', 'mine', 'our', 'ours', 'he', 'him', 'his', 
-        'she', 'her', 'hers', 'be', 'am', 'was', 'were', 'do', 'does', 'did', 'doing'
-    ])
+    # Custom Lexicon: Targeted search for high-value CPG and Tech attributes + Sentiment assignment
+    attribute_lexicon = {
+        'organic': '🟢', 'natural': '🟢', 'vegan': '🟢', 'sulfate-free': '🟢', 'paraben-free': '🟢',
+        'grain-free': '🟢', 'probiotics': '🟢', 'hyaluronic': '🟢', 'collagen': '🟢', 'non-gmo': '🟢',
+        'delicious': '🟢', 'smooth': '🟢', 'refreshing': '🟢', 'soothing': '🟢', 'hydrating': '🟢',
+        'moisturizing': '🟢', 'nourishing': '🟢', 'repairing': '🟢', 'strengthening': '🟢',
+        'anti-aging': '🟢', 'fast-acting': '🟢', 'durable': '🟢', 'reliable': '🟢', 'effective': '🟢',
+        'sturdy': '🟢', 'sharp': '🟢', 'crisp': '🟢', 'affordable': '🟢', 'premium': '🟢', 'value': '🟢',
+        'convenient': '🟢', 'easy': '🟢', 'quick': '🟢', 'portable': '🟢', 'compact': '🟢',
+        'sustainable': '🟢', 'eco-friendly': '🟢', 'recyclable': '🟢', 'cruelty-free': '🟢',
+        'ethical': '🟢', 'biodegradable': '🟢', 'high-quality': '🟢', 'quality': '🟢', 'safe': '🟢',
+        'healthy': '🟢', 'toxic': '🔴', 'artificial': '🔴', 'preservatives': '🔴', 'fillers': '🔴', 'bland': '🔴',
+        'stinky': '🔴', 'greasy': '🔴', 'sticky': '🔴', 'bitter': '🔴', 'useless': '🔴',
+        'ineffective': '🔴', 'weak': '🔴', 'slow': '🔴', 'flimsy': '🔴', 'laggy': '🔴',
+        'glitchy': '🔴', 'cheap': '🔴', 'expensive': '🔴', 'overpriced': '🔴', 'bulky': '🔴',
+        'heavy': '🔴', 'dry': '🔴', 'damaged': '🔴', 'chicken': '🟡', 'beef': '🟡', 'salmon': '🟡', 'protein': '🟡', 'vitamins': '🟡',
+        'minerals': '🟡', 'keratin': '🟡', 'aloe': '🟡', 'taste': '🟡', 'flavor': '🟡',
+        'smell': '🟡', 'scent': '🟡', 'fragrance': '🟡', 'texture': '🟡', 'crunchy': '🟡',
+        'soft': '🟡', 'chewy': '🟡', 'budget': '🟡', 'large': '🟡', 'small': '🟡', 'bulk': '🟡',
+        'travel-size': '🟡', 'pack': '🟡', 'oled': '🟡', 'led': '🟡', '4k': '🟡', 'smart': '🟡',
+        'size': '🟡', 'ingredients': '🟡', 'packaging': '🟡'
+    }
     
-    # 2. Sentiment Mapping Logic
-    pos_words = {'effective', 'quality', 'strong', 'good', 'great', 'excellent', 'best', 'love', 'affordable', 'value', 'premium', 'clean', 'natural', 'organic', 'durable', 'fast', 'healthy', 'safe', 'reliable', 'innovative', 'advanced', 'sleek', 'delicious', 'nutritious', 'tasty', 'hydrating', 'soothing'}
-    neg_words = {'cheap', 'expensive', 'bad', 'poor', 'worst', 'weak', 'slow', 'heavy', 'broken', 'toxic', 'harmful', 'overpriced', 'flimsy', 'bland', 'dry', 'greasy'}
-    
-    def get_sentiment_icon(word):
-        if word in pos_words: return '🟢'
-        elif word in neg_words: return '🔴'
-        else: return '🟡'
-
     brand_3_data = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
-    brand_responses = brand_3_data['response'].dropna()
+    brand_responses = brand_3_data['response'].dropna().astype(str)
     
-    all_words = []
+    # Extract only words that explicitly exist in the high-value lexicon
+    extracted_features = []
     for resp in brand_responses:
-        clean_text = re.sub(r'[^\w\s]', '', resp.lower())
-        words = clean_text.split()
-        filtered = [w for w in words if w not in stop_words_extended and w != brand_3.lower()]
-        # Only keep words longer than 2 characters to kill remaining noise
-        filtered = [w for w in filtered if len(w) > 2]
-        all_words.extend(filtered)
+        text_lower = resp.lower()
+        for attr, icon in attribute_lexicon.items():
+            if re.search(r'\b' + re.escape(attr) + r'\b', text_lower):
+                extracted_features.append(attr)
+                
+    # Strategic Bucketing based on the lexicon
+    theme_mapping = {
+        "Ingredients & Formulation": ['organic', 'natural', 'vegan', 'sulfate-free', 'paraben-free', 'grain-free', 'probiotics', 'hyaluronic', 'collagen', 'non-gmo', 'toxic', 'artificial', 'preservatives', 'fillers', 'chicken', 'beef', 'salmon', 'protein', 'vitamins', 'minerals', 'keratin', 'aloe', 'ingredients'],
+        "Sensory & Experience": ['delicious', 'smooth', 'refreshing', 'soothing', 'bland', 'stinky', 'greasy', 'sticky', 'bitter', 'taste', 'flavor', 'smell', 'scent', 'fragrance', 'texture', 'crunchy', 'soft', 'chewy'],
+        "Performance & Efficacy": ['hydrating', 'moisturizing', 'nourishing', 'repairing', 'strengthening', 'anti-aging', 'fast-acting', 'durable', 'reliable', 'effective', 'sturdy', 'sharp', 'crisp', 'high-quality', 'quality', 'safe', 'healthy', 'useless', 'ineffective', 'weak', 'slow', 'flimsy', 'laggy', 'glitchy', 'dry', 'damaged'],
+        "Price & Value": ['affordable', 'premium', 'value', 'cheap', 'expensive', 'overpriced', 'budget'],
+        "Convenience & Format": ['convenient', 'easy', 'quick', 'portable', 'compact', 'bulky', 'heavy', 'large', 'small', 'bulk', 'travel-size', 'pack', 'size', 'packaging'],
+        "Sustainability": ['sustainable', 'eco-friendly', 'recyclable', 'cruelty-free', 'ethical', 'biodegradable']
+    }
+
+    if extracted_features:
+        total_brand_mentions = len(brand_responses)
+        word_counts = Counter(extracted_features).most_common(12)
         
-    if all_words:
-        total_valid_words = len(all_words)
-        word_counts = Counter(all_words).most_common(15)
-        
-        # Convert to Percentages & Add Icons
         wc_data = []
         for word, count in word_counts:
-            pct = (count / total_valid_words) * 100
-            icon = get_sentiment_icon(word)
-            wc_data.append({'Keyword': f"{word} {icon}", 'Percentage': pct, 'Raw_Word': word})
+            pct = (count / total_brand_mentions) * 100 
+            icon = attribute_lexicon[word]
+            wc_data.append({'Keyword_Display': f"{word.title()} {icon}", 'Percentage': pct, 'Raw_Word': word})
             
         wc_df = pd.DataFrame(wc_data)
         
         c1, c2 = st.columns([1, 1])
         
         with c1:
-            st.markdown("#### Top Descriptors (%)")
-            fig_bar = px.bar(wc_df, x='Percentage', y='Keyword', orientation='h',
+            st.markdown("#### Top Descriptors & Attributes (%)")
+            fig_bar = px.bar(wc_df, x='Percentage', y='Keyword_Display', orientation='h',
                              color='Percentage', color_continuous_scale='Blues',
-                             labels={'Percentage': '% of Total Mentions'})
+                             labels={'Percentage': '% of Brand Mentions', 'Keyword_Display': ''})
             fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig_bar, use_container_width=True, key="tab3_bar_words", help="The percentage frequency of the most common adjectives alongside your brand. 🟢 Positive | 🟡 Neutral | 🔴 Negative")
+            st.plotly_chart(fig_bar, use_container_width=True, key="tab3_bar_words", help="The percentage of AI responses about your brand that specifically mention these high-value product attributes. 🟢 Positive | 🟡 Neutral | 🔴 Negative")
             
         with c2:
-            st.markdown("#### Thematic Analysis (%)")
-            themes = {
-                "Performance": ["effective", "quality", "strong", "results", "works", "durable", "fast", "clean", "reliable"],
-                "Price/Value": ["cheap", "affordable", "value", "budget", "price", "expensive", "premium", "cost", "overpriced"],
-                "Ingredients/Specs": ["organic", "natural", "ingredients", "specs", "features", "contains", "oil", "vitamin", "healthy", "safe"],
-                "Sentiment": ["love", "good", "great", "best", "bad", "poor", "excellent", "favorite", "worst"]
-            }
-            
-            theme_scores = {k: 0 for k in themes.keys()}
-            for w in all_words:
-                for theme, keywords in themes.items():
-                    if w in keywords:
+            st.markdown("#### Thematic Radar (%)")
+            theme_scores = {k: 0 for k in theme_mapping.keys()}
+            for word in extracted_features:
+                for theme, words_in_theme in theme_mapping.items():
+                    if word in words_in_theme:
                         theme_scores[theme] += 1
             
             total_theme_hits = sum(theme_scores.values())
@@ -617,31 +618,62 @@ with tab_semantic:
             theme_df = pd.DataFrame(theme_data)
             fig_radar = px.line_polar(theme_df, r='Percentage', theta='Theme', line_close=True)
             fig_radar.update_traces(fill='toself', line_color='#6366f1')
-            st.plotly_chart(fig_radar, use_container_width=True, key="tab3_radar_theme", help="Maps the raw descriptors into strategic positioning buckets as a % share of total attributes.")
+            st.plotly_chart(fig_radar, use_container_width=True, key="tab3_radar_theme", help="Categorizes the extracted features into strategic positioning themes. Values represent the % share of total attribute mentions.")
             
-        # --- Contextual Deep Dive Feature ---
+        # --- Contextual Deep Dive Module (Two-Tier Filter) ---
         st.markdown("---")
         st.markdown("#### Contextual Deep Dive")
-        st.write("Select a top descriptor below to understand exactly where and how it is being used by AI assistants.")
+        st.write("Select a strategic theme and drill down into specific descriptors & attributes to understand exactly where and how AI platforms are framing your brand.")
         
-        top_raw_words = [item['Raw_Word'] for item in wc_data]
-        selected_insight_word = st.selectbox("Select Descriptor:", top_raw_words, key="insight_word")
+        f_theme, f_attr = st.columns(2)
         
-        if selected_insight_word:
-            # Filter the subset to only responses containing this specific word
-            insight_subset = brand_3_data[brand_3_data['response'].str.contains(r'\b' + re.escape(selected_insight_word) + r'\b', case=False, na=False)]
+        selected_theme = f_theme.selectbox("🎯 Select Theme:", list(theme_mapping.keys()), key="insight_theme")
+        
+        # Determine which words in the selected theme actually appear in this brand's data
+        theme_present_words = [w for w in set(extracted_features) if w in theme_mapping[selected_theme]]
+        
+        if theme_present_words:
+            selected_attribute = f_attr.selectbox("🔎 Select Descriptor / Attribute:", ["-- Overall Theme Insight --"] + sorted(theme_present_words), key="insight_attr")
             
-            if not insight_subset.empty:
-                top_plat = insight_subset['AI platform'].mode()[0]
-                top_geo = insight_subset['country'].mode()[0]
-                word_icon = get_sentiment_icon(selected_insight_word)
-                sentiment_text = "Positive" if word_icon == '🟢' else "Negative" if word_icon == '🔴' else "Neutral"
+            if selected_attribute == "-- Overall Theme Insight --":
+                # Aggregate Theme Insight
+                pattern = r'\b(?:' + '|'.join(map(re.escape, theme_present_words)) + r')\b'
+                insight_subset = brand_3_data[brand_3_data['response'].str.contains(pattern, case=False, na=False)]
                 
-                st.info(f"🧠 **AI Insight:** The descriptor **'{selected_insight_word}'** is most frequently surfaced by **{top_plat}** in the **{top_geo}** market. The overall sentiment classification for this specific term is **{sentiment_text}**. AI platforms typically use this phrasing when differentiating {brand_3} from competitors based on its specific attributes and fit for the target audience.")
+                if not insight_subset.empty:
+                    top_plat = insight_subset['AI platform'].value_counts().index[0]
+                    top_country = insight_subset['country'].value_counts().index[0]
+                    plat_pct = (len(insight_subset[insight_subset['AI platform'] == top_plat]) / len(insight_subset)) * 100
+                    
+                    st.info(f"🧠 **Theme Insight ({selected_theme}):** AI platforms frequently discuss {brand_3} in the context of **{selected_theme}**. " 
+                            f"This narrative is heavily driven by **{top_plat}** (accounting for {plat_pct:.0f}% of these thematic mentions), especially in the **{top_country}** market. "
+                            f"The most commonly cited attributes driving this theme are: **{', '.join(theme_present_words[:5])}**.")
+                else:
+                    st.info(f"Not enough data to generate an aggregate insight for {selected_theme}.")
             else:
-                st.info("Insufficient data to generate a deep dive for this term.")
+                # Specific Attribute Insight
+                insight_subset = brand_3_data[brand_3_data['response'].str.contains(r'\b' + re.escape(selected_attribute) + r'\b', case=False, na=False)]
+                
+                if not insight_subset.empty:
+                    top_plat = insight_subset['AI platform'].value_counts().index[0]
+                    top_country = insight_subset['country'].value_counts().index[0]
+                    plat_pct = (len(insight_subset[insight_subset['AI platform'] == top_plat]) / len(insight_subset)) * 100
+                    
+                    icon = attribute_lexicon[selected_attribute]
+                    sentiment_text = "Positive" if icon == '🟢' else "Negative" if icon == '🔴' else "Neutral"
+                    
+                    ai_text = f"🧠 **Attribute Insight:** The descriptor **'{selected_attribute}'** registers as a **{sentiment_text}** signal for {brand_3} within the {selected_theme} category. " \
+                              f"It is heavily indexed in the **{top_country}** market, primarily driven by recommendations on **{top_plat}** (accounting for {plat_pct:.0f}% of these specific mentions). " \
+                              f"When AI assistants highlight this feature, they are generally positioning the brand to appeal to shoppers prioritizing " \
+                              f"{'premium quality and efficacy' if sentiment_text == 'Positive' else 'budget constraints or identified product flaws' if sentiment_text == 'Negative' else 'specific formulation and formatting requirements'}."
+                    
+                    st.info(ai_text)
+                else:
+                    st.info("Insufficient data to generate a deep dive for this specific term.")
+        else:
+            st.info(f"No descriptors or attributes related to '{selected_theme}' were found for {brand_3} in the current data selection.")
     else:
-        st.warning("Not enough text data to generate semantic analysis for this brand.")
+        st.warning("Not enough highly-relevant product attribute data to generate semantic analysis for this brand.")
 
 # === TAB 4: SOURCE INTELLIGENCE ===
 with tab_sources:
