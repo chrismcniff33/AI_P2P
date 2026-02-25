@@ -134,7 +134,7 @@ if df_exploded.empty:
 # --- 4. TOP LEVEL NAVIGATION ---
 st.title("AI Path to Purchase")
 
-# Native Clickable Tabs Ribbon (Updated Tab 2 Title)
+# Native Clickable Tabs Ribbon
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ Share of Voice Overview", 
     "📊 Competitor Benchmarking", 
@@ -374,12 +374,15 @@ with tab_sov:
     st.markdown("---")
 
     st.subheader("Competitive Share of Voice Analysis", help="Compare your brand directly against the top 10 competitors in this category.")
-    st.markdown("#### 1. SoV Evolution (Top 10 Brands)")
+    st.markdown("#### 1. SoV Evolution (Top 10 Brands)", help="Only countries and AI platforms where the brand selected in the main filter is present are available to view in this chart.")
     
-    # --- New Multi-Select Filters for the Line Chart ---
+    # --- New Multi-Select Filters for the Line Chart (Conditional Logic) ---
     f1_2, f2_2 = st.columns(2)
-    avail_countries_2 = sorted(scope_df_2['country'].unique())
-    avail_platforms_2 = sorted(scope_df_2['AI platform'].unique())
+    
+    # Filter available options based ONLY on where the selected brand actually exists
+    brand_2_presence_df = scope_df_2[scope_df_2['mentioned_brands'] == brand_2]
+    avail_countries_2 = sorted(brand_2_presence_df['country'].unique())
+    avail_platforms_2 = sorted(brand_2_presence_df['AI platform'].unique())
     
     sel_countries_2 = f1_2.multiselect("🌍 Filter by Country", avail_countries_2, default=avail_countries_2, key="trend_country")
     sel_platforms_2 = f2_2.multiselect("🤖 Filter by AI Platform", avail_platforms_2, default=avail_platforms_2, key="trend_plat")
