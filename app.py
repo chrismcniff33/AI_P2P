@@ -144,7 +144,7 @@ if df_exploded.empty:
 # --- 4. TOP LEVEL NAVIGATION ---
 st.title("AI Path to Purchase")
 
-# Native Clickable Tabs Ribbon (Updated Tab 3 Title)
+# Native Clickable Tabs Ribbon
 tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ Share of Voice Overview", 
     "📊 Competitor Benchmarking", 
@@ -274,7 +274,7 @@ with tab_insight:
         
         fig_l.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
-        st.plotly_chart(fig_l, use_container_width=True, help="Trendline of brand visibility separated by LLM platform.")
+        st.plotly_chart(fig_l, use_container_width=True, key="tab1_line_plat", help="Trendline of brand visibility separated by LLM platform.")
     else:
         st.info("No data available for the selected geography.")
 
@@ -306,7 +306,7 @@ with tab_insight:
         
         fig_r.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
-        st.plotly_chart(fig_r, use_container_width=True, help="Trendline of brand visibility separated by Country.")
+        st.plotly_chart(fig_r, use_container_width=True, key="tab1_line_geo", help="Trendline of brand visibility separated by Country.")
     else:
         st.info("No data available for the selected AI Platform.")
             
@@ -350,7 +350,7 @@ with tab_insight:
         yaxis=dict(autorange="reversed"), 
         plot_bgcolor="#e2e8f0" 
     )
-    st.plotly_chart(fig_hm, use_container_width=True)
+    st.plotly_chart(fig_hm, use_container_width=True, key="tab1_heatmap")
 
 # === TAB 2: COMPETITOR BENCHMARKING ===
 with tab_sov:
@@ -405,7 +405,7 @@ with tab_sov:
         fig_time_comp.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_comp.update_traces(opacity=0.3)
         fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
-        st.plotly_chart(fig_time_comp, use_container_width=True, help="Your selected brand is highlighted with a thicker, solid line. Data reflects the dropdown filters directly above.")
+        st.plotly_chart(fig_time_comp, use_container_width=True, key="tab2_line_comp", help="Your selected brand is highlighted with a thicker, solid line. Data reflects the dropdown filters directly above.")
     else:
         st.info("No timeline data available for these filter selections.")
     
@@ -477,7 +477,7 @@ with tab_sov:
                                       zmin=-1, zmax=1)
                 fig_focus.update_traces(text=focus_text.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_focus.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig_focus, use_container_width=True)
+                st.plotly_chart(fig_focus, use_container_width=True, key="tab2_hm_focus")
                 
             with col_hm2:
                 st.markdown(f"**{competitor_brand} Ranking**")
@@ -486,7 +486,7 @@ with tab_sov:
                 fig_comp = px.imshow(comp_color, aspect="auto", color_continuous_scale="Blues")
                 fig_comp.update_traces(text=comp_text.values, texttemplate="%{text}", hoverinfo="skip")
                 fig_comp.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig_comp, use_container_width=True)
+                st.plotly_chart(fig_comp, use_container_width=True, key="tab2_hm_comp")
                 
             st.caption("🟢 Green: Stronger than competitor | 🟡 Yellow: Tied | 🔴 Red: Weaker than competitor")
         else:
@@ -509,7 +509,7 @@ with tab_semantic:
         
     st.markdown("---")
     
-    # --- NEW: SoV by Search Criteria Line Chart ---
+    # --- SoV by Search Criteria Line Chart ---
     st.subheader("Share of Voice by Search Criteria", help="Analyze how your brand's visibility fluctuates based on specific shopper search intents (e.g. Budget vs Premium).")
     
     f1_3, f2_3, f3_3 = st.columns(3)
@@ -517,15 +517,12 @@ with tab_semantic:
     brand_3_presence_df = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
     avail_countries_3 = sorted(brand_3_presence_df['country'].unique()) if not brand_3_presence_df.empty else []
     avail_platforms_3 = sorted(brand_3_presence_df['AI platform'].unique()) if not brand_3_presence_df.empty else []
-    
-    # We want criteria for the whole category so users can see how the brand performs against others in that specific criteria slice
     avail_criteria_3 = sorted(scope_df_3['criteria'].astype(str).unique())
     
     sel_countries_3 = f1_3.multiselect("🌍 Filter by Country", avail_countries_3, default=avail_countries_3, key="crit_country")
     sel_platforms_3 = f2_3.multiselect("🤖 Filter by AI Platform", avail_platforms_3, default=avail_platforms_3, key="crit_plat")
     sel_criteria_3 = f3_3.multiselect("🔎 Filter by Criteria", avail_criteria_3, default=avail_criteria_3, key="crit_crit")
     
-    # Apply filters
     crit_scope_df = scope_df_3[
         (scope_df_3['country'].isin(sel_countries_3)) & 
         (scope_df_3['AI platform'].isin(sel_platforms_3)) &
@@ -550,7 +547,7 @@ with tab_semantic:
         fig_time_crit.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_crit.update_traces(opacity=0.3)
         fig_time_crit.update_traces(selector={'name':brand_3}, opacity=1, line={'width': 4})
-        st.plotly_chart(fig_time_crit, use_container_width=True, help="Trendline of Share of Voice specifically for the selected search criteria.")
+        st.plotly_chart(fig_time_crit, use_container_width=True, key="tab3_line_crit", help="Trendline of Share of Voice specifically for the selected search criteria.")
     else:
         st.info("No timeline data available for these filter selections.")
         
@@ -584,7 +581,7 @@ with tab_semantic:
             fig_bar = px.bar(wc_df, x='Frequency', y='Keyword', orientation='h',
                              color='Frequency', color_continuous_scale='Blues')
             fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig_bar, use_container_width=True, help="The raw counts of the most frequently used adjectives alongside your brand.")
+            st.plotly_chart(fig_bar, use_container_width=True, key="tab3_bar_words", help="The raw counts of the most frequently used adjectives alongside your brand.")
             
         with c2:
             st.markdown("#### Thematic Analysis")
@@ -604,7 +601,7 @@ with tab_semantic:
             theme_df = pd.DataFrame(list(theme_scores.items()), columns=['Theme', 'Count'])
             fig_radar = px.line_polar(theme_df, r='Count', theta='Theme', line_close=True)
             fig_radar.update_traces(fill='toself', line_color='#6366f1')
-            st.plotly_chart(fig_radar, use_container_width=True, help="Maps the raw descriptors into strategic positioning buckets. Ensure the AI is not categorizing your premium brand as 'budget'.")
+            st.plotly_chart(fig_radar, use_container_width=True, key="tab3_radar_theme", help="Maps the raw descriptors into strategic positioning buckets. Ensure the AI is not categorizing your premium brand as 'budget'.")
     else:
         st.warning("Not enough data to generate semantic analysis for this brand.")
 
@@ -639,7 +636,7 @@ with tab_sources:
         with c1:
             fig_tree = px.treemap(source_counts, path=['Source'], values='Mentions',
                                   color='Mentions', color_continuous_scale='RdBu')
-            st.plotly_chart(fig_tree, use_container_width=True, help="Size of the box indicates the volume of brand mentions stemming from that specific source.")
+            st.plotly_chart(fig_tree, use_container_width=True, key="tab4_tree_source", help="Size of the box indicates the volume of brand mentions stemming from that specific source.")
             
         with c2:
             st.markdown("#### Actionable Targets")
