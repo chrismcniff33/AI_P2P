@@ -95,12 +95,10 @@ theme_mapping = {
     "Sustainability": ['sustainable', 'eco-friendly', 'recyclable', 'cruelty-free', 'ethical', 'biodegradable']
 }
 
-# Pre-compile the regex pattern for blazing fast extraction
 attribute_pattern = re.compile(r'\b(' + '|'.join([re.escape(k) for k in attribute_lexicon.keys()]) + r')\b', re.IGNORECASE)
 
 def extract_attributes_fast(text):
     if pd.isna(text): return []
-    # Lowercase first, then findall, then set to get unique hits per response
     return list(set(attribute_pattern.findall(str(text).lower())))
 
 # --- 4. DATA LOADING & PRE-COMPUTATION ---
@@ -157,7 +155,6 @@ def load_and_enrich_data():
         text_str = str(text)
         return [brand for brand, pattern in brand_patterns.items() if pattern.search(text_str)]
     
-    # ⚡️ PERFORMANCE UPGRADE: Pre-extract brands AND NLP attributes during caching
     df['mentioned_brands'] = df['response'].apply(extract_brands_nlp)
     df['extracted_attributes'] = df['response'].apply(extract_attributes_fast)
     
@@ -478,13 +475,95 @@ with tab_semantic:
         st.info("No timeline data available for these filter selections.")
         
     st.markdown("---")
+    
+    # --- NEW: Criteria Competitor Deep Dive Matrix ---
+    st.markdown("#### Criteria Competitor Deep Dive", help="Directly compare your ranking vs a specific rival across markets and platforms, specifically for the search criteria selected above.")
+    
+    available_competitors_3 = [b for b in brands_3 if b != brand_3]
+    competitor_brand_3 = st.selectbox("🤼 Select Competitor", available_competitors_3, index=0, key='comp_brand_3')
+    
+    if competitor_brand_3:
+        # Filter the matrix data strictly by the selected criteria to reflect how brands perform in that specific narrative
+        matrix_df_3 = scope_df_3[scope_df_3['criteria'].astype(str).isin(sel_criteria_3)]
+        
+        cp_totals_3 = matrix_df_3.groupby(['country', 'AI platform']).size().reset_index(name='total')
+        cp_brands_3 = matrix_df_3.groupby(['country', 'AI platform', 'mentioned_brands']).size().reset_index(name='count')
+        
+        cp_brands_3['rank'] = cp_brands_3.groupby(['country', 'AI platform'])['count'].rank(method='min', ascending=False)
+        
+        focus_df_3 = cp_brands_3[cp_brands_3['mentioned_brands'] == brand_3].set_index(['country', 'AI platform'])
+        comp_df_3 = cp_brands_3[cp_brands_3['mentioned_brands'] == competitor_brand_3].set_index(['country', 'AI platform'])
+        
+        compare_df_3 = pd.DataFrame(index=cp_totals_3.set_index(['country', 'AI platform']).index)
+        compare_df_3['focus_rank'] = focus_df_3['rank']
+        compare_df_3['comp_rank'] = comp_df_3['rank']
+        compare_df_3['focus_count'] = focus_df_3['count'].fillna(0)
+        compare_df_3['comp_count'] = comp_df_3['count'].fillna(0)
+        
+        valid_combos_3 = compare_df_3[(compare_df_3['focus_count'] > 0) | (compare_df_3['comp_count'] > 0)].index
+        compare_df_3 = compare_df_3.loc[valid_combos_3].reset_index()
+        
+        if not compare_df_3.empty:
+            focus_pivot_3 = compare_df_3.pivot(index='country', columns='AI platform', values='focus_rank')
+            comp_pivot_3 = compare_df_3.pivot(index='country', columns='AI platform', values='comp_rank')
+            
+            all_countries_3 = sorted(list(set(focus_pivot_3.index) | set(comp_pivot_3.index)))
+            all_platforms_3 = sorted(list(set(focus_pivot_3.columns) | set(comp_pivot_3.columns)))
+            
+            focus_pivot_3 = focus_pivot_3.reindex(index=all_countries_3, columns=all_platforms_3)
+            comp_pivot_3 = comp_pivot_3.reindex(index=all_countries_3, columns=all_platforms_3)
+            
+            color_matrix_3 = pd.DataFrame(np.nan, index=all_countries_3, columns=all_platforms_3)
+            focus_text_3 = pd.DataFrame("-", index=all_countries_3, columns=all_platforms_3)
+            comp_text_3 = pd.DataFrame("-", index=all_countries_3, columns=all_platforms_3)
+            
+            for c in all_platforms_3:
+                for r in all_countries_3:
+                    f_val = focus_pivot_3.loc[r, c]
+                    c_val = comp_pivot_3.loc[r, c]
+                    
+                    if pd.notna(f_val): focus_text_3.loc[r, c] = f"Rank {int(f_val)}"
+                    if pd.notna(c_val): comp_text_3.loc[r, c] = f"Rank {int(c_val)}"
+                    
+                    if pd.isna(f_val) and pd.isna(c_val):
+                        color_matrix_3.loc[r, c] = np.nan
+                    elif pd.isna(f_val):
+                        color_matrix_3.loc[r, c] = -1 
+                    elif pd.isna(c_val):
+                        color_matrix_3.loc[r, c] = 1
+                    else:
+                        if f_val < c_val: color_matrix_3.loc[r, c] = 1
+                        elif f_val > c_val: color_matrix_3.loc[r, c] = -1
+                        else: color_matrix_3.loc[r, c] = 0
+
+            col_hm1_3, col_hm2_3 = st.columns(2)
+            
+            with col_hm1_3:
+                st.markdown(f"**{brand_3} Ranking (Filtered by Criteria)**")
+                fig_focus_3 = px.imshow(color_matrix_3, aspect="auto", color_continuous_scale=['#ef4444', '#f59e0b', '#10b981'], zmin=-1, zmax=1)
+                fig_focus_3.update_traces(text=focus_text_3.values, texttemplate="%{text}", hoverinfo="skip")
+                fig_focus_3.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig_focus_3, use_container_width=True, key="tab3_hm_focus")
+                
+            with col_hm2_3:
+                st.markdown(f"**{competitor_brand_3} Ranking (Filtered by Criteria)**")
+                max_rank_3 = cp_brands_3['rank'].max()
+                comp_color_3 = max_rank_3 - comp_pivot_3
+                fig_comp_3 = px.imshow(comp_color_3, aspect="auto", color_continuous_scale="Blues")
+                fig_comp_3.update_traces(text=comp_text_3.values, texttemplate="%{text}", hoverinfo="skip")
+                fig_comp_3.update_layout(coloraxis_showscale=False, xaxis_title="", yaxis_title="", plot_bgcolor="#e2e8f0", margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig_comp_3, use_container_width=True, key="tab3_hm_comp")
+                
+            st.caption("🟢 Green: Stronger than competitor | 🟡 Yellow: Tied | 🔴 Red: Weaker than competitor")
+        else:
+            st.info("Neither brand has a presence in the selected criteria data.")
+
+    st.markdown("---")
 
     # --- ADVANCED FAST NLP DESCRIPTOR SECTION ---
     st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact descriptors & attributes AI assistants use when recommending this brand.")
     
     brand_3_data = scope_df_3[scope_df_3['mentioned_brands'] == brand_3]
-    
-    # ⚡️ PERFORMANCE UPGRADE: Fast flattening of pre-extracted attributes
     extracted_features = [attr for sublist in brand_3_data['extracted_attributes'] if isinstance(sublist, list) for attr in sublist]
 
     if extracted_features:
@@ -529,14 +608,12 @@ with tab_semantic:
         f_theme, f_attr = st.columns(2)
         selected_theme = f_theme.selectbox("🎯 Select Theme:", list(theme_mapping.keys()), key="insight_theme")
         
-        # Which words actually exist for this brand in this theme?
         theme_present_words = [w for w in set(extracted_features) if w in theme_mapping[selected_theme]]
         
         if theme_present_words:
             selected_attribute = f_attr.selectbox("🔎 Select Descriptor / Attribute:", ["-- Overall Theme Insight --"] + sorted(theme_present_words), key="insight_attr")
             
             if selected_attribute == "-- Overall Theme Insight --":
-                # FAST Vectorized Filter
                 theme_set = set(theme_present_words)
                 mask = brand_3_data['extracted_attributes'].apply(lambda x: bool(set(x) & theme_set) if isinstance(x, list) else False)
                 insight_subset = brand_3_data[mask]
@@ -552,7 +629,6 @@ with tab_semantic:
                 else:
                     st.info(f"Not enough data to generate an aggregate insight for {selected_theme}.")
             else:
-                # FAST Vectorized Filter
                 mask = brand_3_data['extracted_attributes'].apply(lambda x: selected_attribute in x if isinstance(x, list) else False)
                 insight_subset = brand_3_data[mask]
                 
