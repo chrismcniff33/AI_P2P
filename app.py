@@ -26,38 +26,19 @@ st.markdown("""
             height: 100%;
         }
         
-        /* Style the Radio buttons to look exactly like the old st.tabs */
-        div.row-widget.stRadio > div {
-            display: flex;
-            flex-direction: row;
-            border-bottom: 2px solid #e5e7eb;
-            gap: 5px;
-            padding-bottom: 0px;
-        }
-        div.row-widget.stRadio > div > label {
-            padding: 12px 20px;
-            background-color: #f1f5f9;
-            border-radius: 5px 5px 0px 0px;
-            margin-bottom: 0px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        /* Hide the actual radio circle */
-        div.row-widget.stRadio > div > label > div:first-child {
-            display: none; 
-        }
-        /* Style the text */
-        div.row-widget.stRadio > div > label > div:last-child {
+        /* Native Tab Styling Improvements */
+        .stTabs [data-baseweb="tab-list"] {gap: 8px; border-bottom: 2px solid #e5e7eb; margin-top: 0.5rem;}
+        .stTabs [data-baseweb="tab"] {
+            height: 45px; 
+            white-space: pre-wrap; 
+            background-color: #f1f5f9; 
+            border-radius: 5px 5px 0px 0px; 
+            padding: 10px 20px;
             font-weight: 600;
-            color: #475569;
-            margin-left: 0px;
         }
-        /* Active Tab Styling */
-        div.row-widget.stRadio > div > label[data-checked="true"] {
-            background-color: #4f46e5;
-        }
-        div.row-widget.stRadio > div > label[data-checked="true"] > div:last-child {
-            color: white;
+        .stTabs [aria-selected="true"] {
+            background-color: #4f46e5 !important; 
+            color: white !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -150,50 +131,43 @@ if df_exploded.empty:
     st.stop()
 
 
-# --- 4. TOP LEVEL NAVIGATION & FILTERS ---
+# --- 4. TOP LEVEL NAVIGATION ---
 st.title("AI Path to Purchase")
 
-# The Navigation Ribbon (Directly below title)
-nav_options = [
+# Native Clickable Tabs Ribbon
+tab_insight, tab_sov, tab_semantic, tab_sources = st.tabs([
     "👁️ Share of Voice Overview", 
     "📊 Share of Voice Trends", 
     "💬 Brand Perception", 
     "🔗 Source Intelligence"
-]
-selected_tab = st.radio("Navigation", nav_options, horizontal=True, label_visibility="collapsed")
+])
 
-st.markdown("<br>", unsafe_allow_html=True)
 
-# The Filters (Directly below ribbon)
-col_cat, col_brand = st.columns(2)
-
-with col_cat:
-    selected_category = st.selectbox("📂 Select Category", sorted(df['category'].unique()), help="Filter all dashboard metrics by specific product category")
-    scope_df = df_exploded[df_exploded['category'] == selected_category]
-
-with col_brand:
-    if not scope_df.empty:
-        available_brands = scope_df['mentioned_brands'].value_counts().head(50).index.tolist()
-        target_brand = st.selectbox("🎯 Select Focus Brand", available_brands, index=0, help="Select the core brand to benchmark against the industry")
+# === TAB 1: SHARE OF VOICE OVERVIEW ===
+with tab_insight:
+    # --- Tab-Specific Filters ---
+    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+    c1_1, c2_1 = st.columns(2)
+    cat_1 = c1_1.selectbox("📂 Select Category", sorted(df['category'].unique()), key='cat_1', help="Filter Tab 1 metrics by specific product category")
+    scope_df_1 = df_exploded[df_exploded['category'] == cat_1]
+    
+    if not scope_df_1.empty:
+        brands_1 = scope_df_1['mentioned_brands'].value_counts().head(50).index.tolist()
+        brand_1 = c2_1.selectbox("🎯 Select Focus Brand", brands_1, index=0, key='brand_1', help="Select the core brand to benchmark against the industry")
     else:
         st.warning("No data for this category.")
         st.stop()
-
-st.markdown("---")
-
-# --- 5. MAIN TAB LOGIC ---
-
-# === TAB 1: SHARE OF VOICE OVERVIEW ===
-if selected_tab == "👁️ Share of Voice Overview":
+        
+    st.markdown("---")
     
     st.subheader("Global AI Visibility Metrics", help="High-level summary of your brand's footprint across all monitored Generative AI platforms.")
     
     # Global Calculations
-    global_mentions = len(scope_df)
-    brand_mentions = len(scope_df[scope_df['mentioned_brands'] == target_brand])
+    global_mentions = len(scope_df_1)
+    brand_mentions = len(scope_df_1[scope_df_1['mentioned_brands'] == brand_1])
     global_sov = (brand_mentions / global_mentions) * 100 if global_mentions > 0 else 0
     
-    num_brands = len(scope_df['mentioned_brands'].unique())
+    num_brands = len(scope_df_1['mentioned_brands'].unique())
     ind_avg_sov = 100.0 / num_brands if num_brands > 0 else 0
     
     ratio = global_sov / ind_avg_sov if ind_avg_sov > 0 else 0
@@ -204,9 +178,9 @@ if selected_tab == "👁️ Share of Voice Overview":
     else: visibility = "Excellent"
     
     # INTELLIGENT KPI CALCULATION (Linked strictly to Heatmap Index Logic)
-    hm_totals = scope_df.groupby(['country', 'AI platform']).size().reset_index(name='total')
-    hm_brand = scope_df[scope_df['mentioned_brands'] == target_brand].groupby(['country', 'AI platform']).size().reset_index(name='brand_count')
-    hm_unique = scope_df.groupby(['country', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique_brands')
+    hm_totals = scope_df_1.groupby(['country', 'AI platform']).size().reset_index(name='total')
+    hm_brand = scope_df_1[scope_df_1['mentioned_brands'] == brand_1].groupby(['country', 'AI platform']).size().reset_index(name='brand_count')
+    hm_unique = scope_df_1.groupby(['country', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique_brands')
     
     hm_df = pd.merge(hm_totals, hm_brand, on=['country', 'AI platform'], how='left').fillna(0)
     hm_df = pd.merge(hm_df, hm_unique, on=['country', 'AI platform'])
@@ -215,8 +189,6 @@ if selected_tab == "👁️ Share of Voice Overview":
     hm_df['ind_avg'] = 100.0 / hm_df['unique_brands'].replace(0, 1) 
     hm_df['index_vs_avg'] = (hm_df['sov'] / hm_df['ind_avg']) * 100
     
-    # Filter out combinations where total volume is 0 OR the brand index is 0
-    # This prevents recommending a "0 index" as an area for improvement when it actually means no presence.
     hm_valid = hm_df[(hm_df['total'] > 0) & (hm_df['index_vs_avg'] > 0)]
     
     if not hm_valid.empty:
@@ -267,20 +239,20 @@ if selected_tab == "👁️ Share of Voice Overview":
     
     # CHART 1: SoV by AI Platform
     st.markdown("#### SoV by AI Platform")
-    all_geos_options = ["Global"] + sorted(scope_df['country'].unique())
+    all_geos_options = ["Global"] + sorted(scope_df_1['country'].unique())
     selected_geos = st.multiselect("Filter Geography", all_geos_options, default=["Global"], key="geo_filter", help="Isolate the trendline data to specific countries.")
     
     if "Global" in selected_geos:
-        left_df = scope_df
+        left_df = scope_df_1
     else:
-        left_df = scope_df[scope_df['country'].isin(selected_geos)]
+        left_df = scope_df_1[scope_df_1['country'].isin(selected_geos)]
         
     if not left_df.empty:
         l_totals = left_df.groupby(['date', 'AI platform']).size().reset_index(name='total')
-        l_brand = left_df[left_df['mentioned_brands'] == target_brand].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
+        l_brand = left_df[left_df['mentioned_brands'] == brand_1].groupby(['date', 'AI platform']).size().reset_index(name='brand_count')
         l_merged = pd.merge(l_totals, l_brand, on=['date', 'AI platform'], how='left').fillna(0)
         
-        # Filter out platforms where the brand has absolute zero presence across ALL dates
+        # Filter out platforms where the brand has absolute zero presence
         valid_platforms = l_merged.groupby('AI platform')['brand_count'].sum()
         valid_platforms = valid_platforms[valid_platforms > 0].index
         l_merged = l_merged[l_merged['AI platform'].isin(valid_platforms)]
@@ -290,9 +262,11 @@ if selected_tab == "👁️ Share of Voice Overview":
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
                         labels={'sov': 'Share of Voice (%)'}, height=400)
         
-        # True Weekly Industry Average
-        ind_avg_df_l = left_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
-        ind_avg_df_l['ind_avg'] = 100.0 / ind_avg_df_l['unique'].replace(0, 1)
+        # True Fluctuating Weekly Industry Average
+        # Calculates the mean SoV across all unique brands actually present in each platform for that week
+        plat_uniques = left_df.groupby(['date', 'AI platform'])['mentioned_brands'].nunique().reset_index(name='unique')
+        plat_uniques['plat_avg'] = 100.0 / plat_uniques['unique'].replace(0, 1)
+        ind_avg_df_l = plat_uniques.groupby('date')['plat_avg'].mean().reset_index(name='ind_avg')
         
         fig_l.add_trace(go.Scatter(
             x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg'],
@@ -300,6 +274,11 @@ if selected_tab == "👁️ Share of Voice Overview":
             name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
         ))
         
+        # FIX: Y-axis starting at 0, X-axis formatted to Month-Day
+        fig_l.update_layout(
+            yaxis=dict(rangemode='tozero'),
+            xaxis=dict(tickformat="%b %-d")
+        )
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_l, use_container_width=True, help="Trendline of brand visibility separated by LLM platform.")
     else:
@@ -309,20 +288,20 @@ if selected_tab == "👁️ Share of Voice Overview":
     
     # CHART 2: SoV by Geography
     st.markdown("#### SoV by Geography")
-    all_plats_options = ["All AI Platforms"] + sorted(scope_df['AI platform'].unique())
+    all_plats_options = ["All AI Platforms"] + sorted(scope_df_1['AI platform'].unique())
     selected_plats = st.multiselect("Filter AI Platform", all_plats_options, default=["All AI Platforms"], key="plat_filter", help="Isolate the geographic trends to specific LLMs.")
     
     if "All AI Platforms" in selected_plats:
-        right_df = scope_df
+        right_df = scope_df_1
     else:
-        right_df = scope_df[scope_df['AI platform'].isin(selected_plats)]
+        right_df = scope_df_1[scope_df_1['AI platform'].isin(selected_plats)]
         
     if not right_df.empty:
         r_totals = right_df.groupby(['date', 'country']).size().reset_index(name='total')
-        r_brand = right_df[right_df['mentioned_brands'] == target_brand].groupby(['date', 'country']).size().reset_index(name='brand_count')
+        r_brand = right_df[right_df['mentioned_brands'] == brand_1].groupby(['date', 'country']).size().reset_index(name='brand_count')
         r_merged = pd.merge(r_totals, r_brand, on=['date', 'country'], how='left').fillna(0)
         
-        # Filter out countries where the brand has absolute zero presence across ALL dates
+        # Filter out countries where the brand has absolute zero presence
         valid_countries = r_merged.groupby('country')['brand_count'].sum()
         valid_countries = valid_countries[valid_countries > 0].index
         r_merged = r_merged[r_merged['country'].isin(valid_countries)]
@@ -332,9 +311,10 @@ if selected_tab == "👁️ Share of Voice Overview":
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
                         labels={'sov': 'Share of Voice (%)'}, height=400)
         
-        # True Weekly Industry Average
-        ind_avg_df_r = right_df.groupby('date')['mentioned_brands'].nunique().reset_index(name='unique')
-        ind_avg_df_r['ind_avg'] = 100.0 / ind_avg_df_r['unique'].replace(0, 1)
+        # True Fluctuating Weekly Industry Average for Countries
+        geo_uniques = right_df.groupby(['date', 'country'])['mentioned_brands'].nunique().reset_index(name='unique')
+        geo_uniques['geo_avg'] = 100.0 / geo_uniques['unique'].replace(0, 1)
+        ind_avg_df_r = geo_uniques.groupby('date')['geo_avg'].mean().reset_index(name='ind_avg')
         
         fig_r.add_trace(go.Scatter(
             x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg'],
@@ -342,6 +322,11 @@ if selected_tab == "👁️ Share of Voice Overview":
             name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
         ))
         
+        # FIX: Y-axis starting at 0, X-axis formatted to Month-Day
+        fig_r.update_layout(
+            yaxis=dict(rangemode='tozero'),
+            xaxis=dict(tickformat="%b %-d")
+        )
         fig_r.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
         st.plotly_chart(fig_r, use_container_width=True, help="Trendline of brand visibility separated by Country.")
     else:
@@ -392,18 +377,33 @@ if selected_tab == "👁️ Share of Voice Overview":
     st.plotly_chart(fig_hm, use_container_width=True)
 
 # === TAB 2: SHARE OF VOICE (COMPETITIVE TRENDS) ===
-elif selected_tab == "📊 Share of Voice Trends":
+with tab_sov:
+    # --- Tab-Specific Filters ---
+    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+    c1_2, c2_2 = st.columns(2)
+    cat_2 = c1_2.selectbox("📂 Select Category", sorted(df['category'].unique()), key='cat_2')
+    scope_df_2 = df_exploded[df_exploded['category'] == cat_2]
+    
+    if not scope_df_2.empty:
+        brands_2 = scope_df_2['mentioned_brands'].value_counts().head(50).index.tolist()
+        brand_2 = c2_2.selectbox("🎯 Select Focus Brand", brands_2, index=0, key='brand_2')
+    else:
+        st.warning("No data for this category.")
+        st.stop()
+        
+    st.markdown("---")
+
     st.subheader("Competitive Share of Voice Analysis", help="Compare your brand directly against the top 10 competitors in this category.")
     st.markdown("#### 1. SoV Evolution (Top 10 Brands)")
     
-    daily_counts = scope_df.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
+    daily_counts = scope_df_2.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
     
     if not daily_counts.empty:
         daily_totals = daily_counts.groupby('date')['count'].transform('sum')
         daily_counts['sov_pct'] = (daily_counts['count'] / daily_totals) * 100
         
-        top_10 = scope_df['mentioned_brands'].value_counts().head(10).index.tolist()
-        if target_brand not in top_10: top_10.append(target_brand) 
+        top_10 = scope_df_2['mentioned_brands'].value_counts().head(10).index.tolist()
+        if brand_2 not in top_10: top_10.append(brand_2) 
         
         filtered_daily = daily_counts[daily_counts['mentioned_brands'].isin(top_10)]
         
@@ -411,18 +411,23 @@ elif selected_tab == "📊 Share of Voice Trends":
                            labels={'sov_pct': 'Share of Voice (%)'},
                            markers=True)
         
+        # FIX: Y-axis to zero and Dates formatted
+        fig_time_comp.update_layout(
+            yaxis=dict(rangemode='tozero'),
+            xaxis=dict(tickformat="%b %-d")
+        )
         fig_time_comp.update_traces(opacity=0.3)
-        fig_time_comp.update_traces(selector={'name':target_brand}, opacity=1, line={'width': 4})
+        fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
         st.plotly_chart(fig_time_comp, use_container_width=True, help="Your selected brand is highlighted with a thicker, solid line.")
     else:
         st.info("No timeline data available.")
     
     st.markdown("#### 2. Platform Dominance (Top Brands)")
-    plat_counts = scope_df.groupby(['AI platform', 'mentioned_brands']).size().reset_index(name='count')
+    plat_counts = scope_df_2.groupby(['AI platform', 'mentioned_brands']).size().reset_index(name='count')
     
     if not plat_counts.empty:
         if 'top_10' not in locals():
-            top_10 = scope_df['mentioned_brands'].value_counts().head(10).index.tolist()
+            top_10 = scope_df_2['mentioned_brands'].value_counts().head(10).index.tolist()
             
         plat_filtered = plat_counts[plat_counts['mentioned_brands'].isin(top_10)]
         
@@ -433,12 +438,27 @@ elif selected_tab == "📊 Share of Voice Trends":
         st.info("No platform data available.")
 
 # === TAB 3: BRAND PERCEPTION (NLP) ===
-elif selected_tab == "💬 Brand Perception":
-    st.subheader(f"How LLMs Describe '{target_brand}'", help="Semantic analysis of the exact phrasing AI assistants use when recommending this brand.")
+with tab_semantic:
+    # --- Tab-Specific Filters ---
+    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+    c1_3, c2_3 = st.columns(2)
+    cat_3 = c1_3.selectbox("📂 Select Category", sorted(df['category'].unique()), key='cat_3')
+    scope_df_3 = df_exploded[df_exploded['category'] == cat_3]
+    
+    if not scope_df_3.empty:
+        brands_3 = scope_df_3['mentioned_brands'].value_counts().head(50).index.tolist()
+        brand_3 = c2_3.selectbox("🎯 Select Focus Brand", brands_3, index=0, key='brand_3')
+    else:
+        st.warning("No data for this category.")
+        st.stop()
+        
+    st.markdown("---")
+
+    st.subheader(f"How LLMs Describe '{brand_3}'", help="Semantic analysis of the exact phrasing AI assistants use when recommending this brand.")
     
     brand_responses = df[
-        (df['category'] == selected_category) & 
-        (df['response'].str.contains(target_brand, case=False, na=False))
+        (df['category'] == cat_3) & 
+        (df['response'].str.contains(brand_3, case=False, na=False))
     ]['response']
     
     stopwords = set(['the', 'and', 'is', 'to', 'in', 'of', 'for', 'with', 'a', 'it', 'this', 'that', 'brand', 'product', 'recommend', 'options', 'choice', 'popular', 'user', 'users', 'reviews', 'are', 'as', 'on'])
@@ -447,7 +467,7 @@ elif selected_tab == "💬 Brand Perception":
     for resp in brand_responses:
         clean_text = re.sub(r'[^\w\s]', '', resp.lower())
         words = clean_text.split()
-        filtered = [w for w in words if w not in stopwords and w != target_brand.lower()]
+        filtered = [w for w in words if w not in stopwords and w != brand_3.lower()]
         all_words.extend(filtered)
         
     if all_words:
@@ -486,11 +506,26 @@ elif selected_tab == "💬 Brand Perception":
         st.warning("Not enough data to generate semantic analysis for this brand.")
 
 # === TAB 4: SOURCE INTELLIGENCE ===
-elif selected_tab == "🔗 Source Intelligence":
+with tab_sources:
+    # --- Tab-Specific Filters ---
+    st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+    c1_4, c2_4 = st.columns(2)
+    cat_4 = c1_4.selectbox("📂 Select Category", sorted(df['category'].unique()), key='cat_4')
+    scope_df_4 = df_exploded[df_exploded['category'] == cat_4]
+    
+    if not scope_df_4.empty:
+        brands_4 = scope_df_4['mentioned_brands'].value_counts().head(50).index.tolist()
+        brand_4 = c2_4.selectbox("🎯 Select Focus Brand", brands_4, index=0, key='brand_4')
+    else:
+        st.warning("No data for this category.")
+        st.stop()
+        
+    st.markdown("---")
+
     st.subheader("Where is the LLM getting this info?", help="Traces the AI recommendations back to their origin authoritative sources across the web.")
     st.info("Based on citation patterns and known training data correlations.")
     
-    brand_source_df = scope_df[scope_df['mentioned_brands'] == target_brand]
+    brand_source_df = scope_df_4[scope_df_4['mentioned_brands'] == brand_4]
     
     if not brand_source_df.empty:
         source_counts = brand_source_df['source_citation'].value_counts().reset_index()
@@ -505,7 +540,7 @@ elif selected_tab == "🔗 Source Intelligence":
             
         with c2:
             st.markdown("#### Actionable Targets")
-            cat_sources = scope_df['source_citation'].value_counts(normalize=True)
+            cat_sources = scope_df_4['source_citation'].value_counts(normalize=True)
             brand_sources = brand_source_df['source_citation'].value_counts(normalize=True)
             
             # Find where category average is higher than brand average
