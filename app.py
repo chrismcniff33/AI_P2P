@@ -163,7 +163,6 @@ with tab_insight:
     st.subheader("Global AI Visibility Metrics", help="High-level summary of your brand's footprint across all monitored Generative AI platforms.")
     
     # EXACT WEEKLY INDUSTRY AVERAGE LOGIC (For KPI alignment)
-    # Calculate SoV for all brands on a weekly basis, then take the mean to establish the baseline
     wk_totals = scope_df_1.groupby('date').size().reset_index(name='total')
     wk_brands = scope_df_1.groupby(['date', 'mentioned_brands']).size().reset_index(name='count')
     wk_sov = pd.merge(wk_brands, wk_totals, on='date')
@@ -271,17 +270,6 @@ with tab_insight:
         fig_l = px.line(l_merged, x='date', y='sov', color='AI platform', markers=True, 
                         labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
         
-        # True Weekly Industry Average (Mean SoV of all active brands grouped by week)
-        all_l_sov = pd.merge(l_brand, l_totals, on=['date', 'AI platform'])
-        all_l_sov['sov'] = (all_l_sov['brand_count'] / all_l_sov['total']) * 100
-        ind_avg_df_l = all_l_sov.groupby('date')['sov'].mean().reset_index(name='ind_avg')
-        
-        fig_l.add_trace(go.Scatter(
-            x=ind_avg_df_l['date'], y=ind_avg_df_l['ind_avg'],
-            mode='lines', line=dict(dash='dash', color='gray', width=2),
-            name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
-        ))
-        
         # Y-axis starting at 0, X-axis formatted to Month-Day
         fig_l.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_l.update_traces(hovertemplate='%{y:.1f}% SoV<extra></extra>')
@@ -316,17 +304,6 @@ with tab_insight:
         
         fig_r = px.line(r_merged, x='date', y='sov', color='country', markers=True,
                         labels={'sov': 'Share of Voice (%)', 'date': ''}, height=400)
-        
-        # True Weekly Industry Average
-        all_r_sov = pd.merge(r_brand, r_totals, on=['date', 'country'])
-        all_r_sov['sov'] = (all_r_sov['brand_count'] / all_r_sov['total']) * 100
-        ind_avg_df_r = all_r_sov.groupby('date')['sov'].mean().reset_index(name='ind_avg')
-        
-        fig_r.add_trace(go.Scatter(
-            x=ind_avg_df_r['date'], y=ind_avg_df_r['ind_avg'],
-            mode='lines', line=dict(dash='dash', color='gray', width=2),
-            name='Industry Avg', hovertemplate='Weekly Avg: %{y:.1f}%<extra></extra>'
-        ))
         
         # Y-axis starting at 0, X-axis formatted to Month-Day
         fig_r.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
@@ -414,7 +391,7 @@ with tab_sov:
                            labels={'sov_pct': 'Share of Voice (%)', 'date': ''},
                            markers=True)
         
-        # Y-axis to zero and Dates formatted
+        # FIX: Y-axis to zero and Dates formatted
         fig_time_comp.update_layout(yaxis=dict(rangemode='tozero'), xaxis=dict(tickformat="%b %d"))
         fig_time_comp.update_traces(opacity=0.3)
         fig_time_comp.update_traces(selector={'name':brand_2}, opacity=1, line={'width': 4})
